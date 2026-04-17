@@ -178,22 +178,40 @@ export function PieChartTable() {
               ))}
             </div>
 
-            <ChartContainer
-              config={chartConfig}
-              className="w-[260px] h-[260px] mx-auto"
-            >
-              <PieChart width={260} height={260}>
-                <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-                <Pie
-                  data={data}
-                  dataKey="value"
-                  nameKey="label"
-                  innerRadius={70}
-                  outerRadius={110}
-                  paddingAngle={2}
-                />
-              </PieChart>
-            </ChartContainer>
+            {data.every((d) => d.value === 0) ? (
+              /* Empty state — all zeros: show a grey placeholder donut */
+              <div className="w-[260px] h-[260px] mx-auto flex items-center justify-center">
+                <svg width="260" height="260" viewBox="0 0 260 260">
+                  <circle
+                    cx="130" cy="130" r="90"
+                    fill="none"
+                    stroke="var(--border, #e5e7eb)"
+                    strokeWidth="40"
+                  />
+                  <text x="130" y="135" textAnchor="middle" dominantBaseline="middle"
+                    className="fill-muted-foreground" fontSize="13" fill="#9ca3af">
+                    No data
+                  </text>
+                </svg>
+              </div>
+            ) : (
+              <ChartContainer
+                config={chartConfig}
+                className="w-[260px] h-[260px] mx-auto"
+              >
+                <PieChart width={260} height={260}>
+                  <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
+                  <Pie
+                    data={data}
+                    dataKey="value"
+                    nameKey="label"
+                    innerRadius={70}
+                    outerRadius={110}
+                    paddingAngle={2}
+                  />
+                </PieChart>
+              </ChartContainer>
+            )}
           </div>
         )}
       </CardContent>
