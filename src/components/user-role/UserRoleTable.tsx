@@ -1,0 +1,458 @@
+"use client"
+
+import * as React from "react"
+import Image from "next/image"
+import { useRouter } from "next/navigation"
+import { apiMe, fetchUsers, authHeaders } from "@/lib/api"
+
+import {
+  ColumnDef,
+  ColumnFiltersState,
+  SortingState,
+  VisibilityState,
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from "@tanstack/react-table"
+import {
+  Eye,
+  Trash2,
+} from "lucide-react"
+import { ArrowUpDown, ChevronDown } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { Skeleton } from "@/components/ui/skeleton"
+import { toast } from "sonner"
+
+/* ---------------- TYPES ---------------- */
+
+type Role = "user" | "engineer" | "admin" | "superadmin"
+
+type Employee = {
+  id: string
+  name: string
+  role: Role
+  empId: string
+  department: string
+  position: string
+  email: string
+  phone: string
+  location: string
+  avatar: string
+}
+
+/* ---------------- COMPONENT ---------------- */
+
+export default function EmployeeTable() {
+  const router = useRouter()
+
+  const [data, setData] = React.useState<Employee[]>([])
+  const [loading, setLoading] = React.useState(true)
+
+  const [currentRole, setCurrentRole] =
+    React.useState<Role>("user")
+
+  const [sorting, setSorting] = React.useState<SortingState>([])
+  const [columnFilters, setColumnFilters] =
+    React.useState<ColumnFiltersState>([])
+  const [columnVisibility, setColumnVisibility] =
+    React.useState<VisibilityState>({})
+  const [rowSelection, setRowSelection] = React.useState({})
+
+  /* ---------------- FETCH USERS ---------------- */
+
+  React.useEffect(() => {
+    const loadUsers = async () => {
+      setLoading(true)
+
+      const me = await apiMe()
+
+      if (!me || !["admin", "engineer", "superadmin"].includes(me.role)) {
+        setData([])
+        setLoading(false)
+        return
+      }
+
+      setCurrentRole(me.role)
+
+      // fetchUsers — server scopes to org automatically
+      const users = await fetchUsers()
+
+      const filtered = me.role === "engineer"
+        ? users.filter((u) => u.role === "user" || u.role === "engineer")
+        : users
+
+      setData(
+        filtered.map((u) => ({
+          id: u.id,
+          name: u.full_name ?? "-",
+          role: u.role ?? "user",
+          empId: (u as any).employee_id ?? "-",
+          department: (u as any).department ?? "-",
+          position: (u as any).position ?? "-",
+          email: u.email ?? "-",
+          phone: u.phone ?? "-",
+          location: u.city ?? "-",
+          avatar: u.avatar_url ?? "/images/user/user-31.jpg",
+        }))
+      )
+
+      setLoading(false)
+    }
+
+    loadUsers()
+  }, [])
+
+  /* ---------------- DELETE USER ---------------- */
+
+  const handleDeleteUser = async (user: Employee) => {
+    if (user.role === "admin" || user.role === "superadmin") {
+      toast.error("Admin account cannot be deleted")
+      return
+    }
+
+    const ok = window.confirm(
+      `Are you sure you want to delete ${user.name}? This will immediately log them out of all sessions.`
+    )
+
+    if (!ok) return
+
+    try {
+      const res = await fetch("/api/user/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders(),
+        },
+        body: JSON.stringify({ target_user_id: user.id }),
+      })
+
+      const resData = await res.json()
+
+      if (!res.ok) {
+        toast.error(resData.error ?? "Failed to delete user")
+        return
+      }
+
+      toast.success("User deleted and all sessions invalidated")
+      setData((prev) => prev.filter((u) => u.id !== user.id))
+    } catch {
+      toast.error("Failed to delete user")
+    }
+  }
+
+  /* ---------------- COLUMNS ---------------- */
+
+  const columns: ColumnDef<Employee>[] = [
+    {
+      id: "select",
+      header: ({ table }) => (
+        <Checkbox
+          checked={table.getIsAllPageRowsSelected()}
+          onCheckedChange={(v) =>
+            table.toggleAllPageRowsSelected(!!v)
+          }
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(v) =>
+            row.toggleSelected(!!v)
+          }
+        />
+      ),
+    },
+    {
+      id: "avatar",
+      header: "",
+      cell: ({ row }) => (
+        <Image
+          src={row.original.avatar}
+          alt={row.original.name}
+          width={36}
+          height={36}
+          className="rounded-full"
+        />
+      ),
+    },
+    { accessorKey: "name", header: "Name" },
+    {
+      accessorKey: "role",
+      header: "Role",
+      cell: ({ row }) => (
+        <span className="capitalize font-semibold">
+          {row.original.role}
+        </span>
+      ),
+      filterFn: (row, id, value: string[]) =>
+        value.includes(row.getValue(id)),
+    },
+    { accessorKey: "empId", header: "Emp ID" },
+    { accessorKey: "department", header: "Department" },
+    { accessorKey: "position", header: "Position" },
+    {
+      accessorKey: "email",
+      header: ({ column }) => (
+        <Button
+          variant="ghost"
+          onClick={() =>
+            column.toggleSorting(
+              column.getIsSorted() === "asc"
+            )
+          }
+        >
+          Official Email
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
+    },
+    { accessorKey: "phone", header: "Phone" },
+    { accessorKey: "location", header: "Location" },
+
+    /* -------- ACTIONS -------- */
+    {
+      id: "actions",
+      header: "Actions",
+      cell: ({ row }) => {
+        const user = row.original
+
+        const canView =
+          currentRole === "superadmin" ||
+          (currentRole === "admin" &&
+            (user.role === "user" ||
+              user.role === "engineer")) ||
+          (currentRole === "engineer" &&
+            user.role === "user")
+
+        const canDelete =
+          (currentRole === "admin" || currentRole === "superadmin") &&
+          user.role !== "admin" && user.role !== "superadmin"
+
+        return (
+          <div className="flex gap-2">
+            {canView && (
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => router.push(`/profile/${user.id}`)}
+              >
+                <Eye className="h-5 w-5" />
+              </Button>
+            )}
+
+            {canDelete && (
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => handleDeleteUser(user)}
+              >
+                <Trash2 className="h-5 w-5 text-red-500" />
+              </Button>
+            )}
+          </div>
+        )
+      },
+    },
+  ]
+
+  /* ---------------- TABLE ---------------- */
+
+  const table = useReactTable({
+    data,
+    columns,
+    state: {
+      sorting,
+      columnFilters,
+      columnVisibility,
+      rowSelection,
+    },
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    onColumnVisibilityChange: setColumnVisibility,
+    onRowSelectionChange: setRowSelection,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  })
+
+  const roles: Role[] = ["user", "engineer", "admin"]
+
+  /* ---------------- UI ---------------- */
+
+  return (
+    <div className="w-full">
+      {/* Filters */}
+      <div className="flex items-center gap-2 py-4">
+        <Input
+          placeholder="Search email..."
+          value={
+            (table.getColumn("email")?.getFilterValue() as string) ??
+            ""
+          }
+          onChange={(e) =>
+            table
+              .getColumn("email")
+              ?.setFilterValue(e.target.value)
+          }
+          className="max-w-sm"
+        />
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline">Filter Role</Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            {roles.map((role) => (
+              <DropdownMenuCheckboxItem
+                key={role}
+                checked={(
+                  table.getColumn("role")?.getFilterValue() as string[]
+                )?.includes(role)}
+                onCheckedChange={(checked) => {
+                  const prev =
+                    (table.getColumn("role")?.getFilterValue() as
+                      | string[]
+                      | undefined) ?? []
+
+                  table
+                    .getColumn("role")
+                    ?.setFilterValue(
+                      checked
+                        ? [...prev, role]
+                        : prev.filter((r) => r !== role)
+                    )
+                }}
+              >
+                {role}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="ml-auto">
+              Columns <ChevronDown className="ml-2 h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {table
+              .getAllColumns()
+              .filter((c) => c.getCanHide())
+              .map((column) => (
+                <DropdownMenuCheckboxItem
+                  key={column.id}
+                  checked={column.getIsVisible()}
+                  onCheckedChange={(v) =>
+                    column.toggleVisibility(!!v)
+                  }
+                >
+                  {column.id}
+                </DropdownMenuCheckboxItem>
+              ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {/* Table */}
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            {table.getHeaderGroups().map((group) => (
+              <TableRow key={group.id}>
+                {group.headers.map((header) => (
+                  <TableHead key={header.id}>
+                    {flexRender(
+                      header.column.columnDef.header,
+                      header.getContext()
+                    )}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
+          </TableHeader>
+
+          <TableBody>
+            {loading ? (
+              [...Array(5)].map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell colSpan={columns.length}>
+                    <Skeleton className="h-10 w-full" />
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : table.getRowModel().rows.length ? (
+              table.getRowModel().rows.map((row) => (
+                <TableRow key={row.id}>
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext()
+                      )}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell
+                  colSpan={columns.length}
+                  className="h-24 text-center"
+                >
+                  No results.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* Pagination */}
+      <div className="flex items-center justify-end space-x-2 py-4">
+        <div className="text-muted-foreground flex-1 text-sm">
+          {table.getFilteredSelectedRowModel().rows.length} of{" "}
+          {table.getFilteredRowModel().rows.length} selected
+        </div>
+        <div className="space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+          >
+            Previous
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+          >
+            Next
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
