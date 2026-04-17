@@ -17,7 +17,6 @@ import { Eye } from "lucide-react"
 import { apiMe, fetchTickets } from "@/lib/api"
 import { STATUS_STYLE } from "@/lib/ticket-utils"
 
-
 type Ticket = {
   id: string
   subject: string
@@ -29,14 +28,8 @@ type Ticket = {
   sub_category: string | null
 }
 
-/* -----------------------------------
-   Time Ago Helper
------------------------------------ */
 function timeAgo(date: string) {
-  const seconds = Math.floor(
-    (Date.now() - new Date(date).getTime()) / 1000
-  )
-
+  const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000)
   if (seconds < 60) return "Just now"
   if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`
   if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`
@@ -49,23 +42,23 @@ export default function UserLatestTickets() {
   const [loading, setLoading] = React.useState(true)
 
   React.useEffect(() => {
+    let mounted = true
+
     const loadTickets = async () => {
       setLoading(true)
-
       const me = await apiMe()
-      if (!me) {
-        setLoading(false)
-        return
-      }
+      if (!mounted) return
+      if (!me) { setLoading(false); return }
 
-      // Fetch tickets scoped to current user as requester
       const data = await fetchTickets({ requester_id: me.id, limit: "10" })
+      if (!mounted) return
 
       setTickets(data as unknown as Ticket[])
       setLoading(false)
     }
 
     loadTickets()
+    return () => { mounted = false }
   }, [])
 
   return (
@@ -103,24 +96,19 @@ export default function UserLatestTickets() {
                   <TableCell className="font-medium">
                     {ticket.id.slice(0, 8).toUpperCase()}
                   </TableCell>
-
                   <TableCell>{ticket.subject}</TableCell>
-                  <TableCell>{(ticket as any).location ?? "-"}</TableCell>
+                  <TableCell>{ticket.location ?? "-"}</TableCell>
                   <TableCell>{ticket.requester_name ?? "-"}</TableCell>
-
                   <TableCell className="text-muted-foreground">
                     {timeAgo(ticket.created_at)}
                   </TableCell>
-
                   <TableCell>
                     <Badge className={STATUS_STYLE[ticket.status]}>
                       {ticket.status.replace("_", " ").toUpperCase()}
                     </Badge>
                   </TableCell>
-
                   <TableCell>{ticket.category ?? "-"}</TableCell>
                   <TableCell>{ticket.sub_category ?? "-"}</TableCell>
-
                   <TableCell className="text-right">
                     <button
                       onClick={() => router.push(`/ticket/${ticket.id}`)}

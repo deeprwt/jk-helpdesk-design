@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { getToken, clearToken, apiMe } from "@/lib/api"
-import { connectSocket, disconnectSocket, getSocket } from "@/lib/socket"
+import { connectSocket, disconnectSocket } from "@/lib/socket"
 
 const PUBLIC_ROUTES = ["/signin", "/signup", "/reset-password", "/update-password", "/verify-email"]
 
@@ -26,6 +26,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     if (isPublicRoute) return
 
     let mounted = true
+    let interval: ReturnType<typeof setInterval> | null = null
+    let cleanupSocket: (() => void) | null = null
 
     const init = async () => {
       const token = getToken()
@@ -45,30 +47,29 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
       setChecking(false)
 
-      // Connect Socket.IO and join user room
       const socket = connectSocket(user.id)
 
-      // Listen for account deletion
-      socket.on("user:deleted", ({ userId }: { userId: string }) => {
+      const handleDeleted = ({ userId }: { userId: string }) => {
         if (userId === user.id) forceLogout()
-      })
+      }
+      socket.on("user:deleted", handleDeleted)
 
-      // Poll every 60s as fallback
-      const interval = setInterval(async () => {
+      cleanupSocket = () => socket.off("user:deleted", handleDeleted)
+
+      interval = setInterval(async () => {
+        if (!mounted) return
         const stillValid = await apiMe()
+        if (!mounted) return
         if (!stillValid) forceLogout()
       }, 60000)
-
-      return () => {
-        clearInterval(interval)
-        socket.off("user:deleted")
-      }
     }
 
     init()
 
     return () => {
       mounted = false
+      if (interval) clearInterval(interval)
+      if (cleanupSocket) cleanupSocket()
     }
   }, [isPublicRoute, router, forceLogout])
 
@@ -89,7 +90,13 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     )
   }
 
-  if (!isPublicRoute && checking) return null
+  if (!isPublicRoute && checking) {
+    return (
+      <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-white dark:bg-gray-900">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    )
+  }
 
   return <>{children}</>
 }

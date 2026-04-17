@@ -65,7 +65,7 @@ export default function EngineerTicketTable() {
     }
 
     if (tab === "queue") {
-      params.queue = "true" // unassigned tickets in my org
+      params.queue = "true"
     } else {
       params.assignee = me.id
     }
@@ -79,21 +79,28 @@ export default function EngineerTicketTable() {
     setHasNext(data.length === PAGE_SIZE)
   }, [tab, search, status, category, page])
 
+  // Keep a ref to always call the latest loadTickets from the socket handler
+  const loadTicketsRef = React.useRef(loadTickets)
+  React.useEffect(() => {
+    loadTicketsRef.current = loadTickets
+  }, [loadTickets])
+
+  // Effect 1: fetch data when filters/tab/page change
   React.useEffect(() => {
     loadTickets()
-
-    // Socket.IO real-time updates
-    const socket = getSocket()
-    if (socket) {
-      const handleTicketUpdate = () => { loadTickets() }
-      socket.on("ticket:updated", handleTicketUpdate)
-      socket.on("ticket:created", handleTicketUpdate)
-      return () => {
-        socket.off("ticket:updated", handleTicketUpdate)
-        socket.off("ticket:created", handleTicketUpdate)
-      }
-    }
   }, [loadTickets])
+
+  // Effect 2: socket listeners — set up once, never torn down on filter change
+  React.useEffect(() => {
+    const socket = getSocket()
+    const handleUpdate = () => loadTicketsRef.current()
+    socket.on("tickets:refresh", handleUpdate)
+    socket.on("ticket:updated", handleUpdate)
+    return () => {
+      socket.off("tickets:refresh", handleUpdate)
+      socket.off("ticket:updated", handleUpdate)
+    }
+  }, [])
 
   const acquireTicket = async (ticketId: string, requesterId: string) => {
     const me = await apiMe()
@@ -118,7 +125,6 @@ export default function EngineerTicketTable() {
     } else {
       toast.success("Ticket acquired")
 
-      /* Notify the user who raised the ticket */
       await sendNotification({
         user_id: requesterId,
         actor_id: me.id,
@@ -127,7 +133,6 @@ export default function EngineerTicketTable() {
         message: `acquired your ticket #${ticketId.slice(0, 8).toUpperCase()}`,
       })
 
-      /* Send email notification */
       const [requesterRes, ticketRes] = await Promise.all([
         fetch(`/api/users/${requesterId}`, { headers: authHeaders() }),
         fetch(`/api/tickets/${ticketId}`, { headers: authHeaders() }),
@@ -147,7 +152,6 @@ export default function EngineerTicketTable() {
         })
       }
 
-      /* Log activity */
       logActivity({
         ticket_id: ticketId,
         actor_id: me.id,
@@ -155,7 +159,6 @@ export default function EngineerTicketTable() {
         details: { engineer_name: me.full_name ?? "Engineer" },
       })
 
-      /* Insert assignment record */
       fetch("/api/ticket-assignments", {
         method: "POST",
         headers: authHeaders(),
@@ -172,7 +175,6 @@ export default function EngineerTicketTable() {
 
   return (
     <Card className="p-6 space-y-6">
-      {/* Header + Filters */}
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold">Engineer Tickets</h2>
 
@@ -186,7 +188,6 @@ export default function EngineerTicketTable() {
         />
       </div>
 
-      {/* Tabs */}
       <Tabs
         value={tab}
         onValueChange={(v) => {
@@ -200,7 +201,6 @@ export default function EngineerTicketTable() {
         </TabsList>
       </Tabs>
 
-      {/* Table */}
       <Table>
         <TableHeader>
           <TableRow>
@@ -256,7 +256,6 @@ export default function EngineerTicketTable() {
         </TableBody>
       </Table>
 
-      {/* Pagination */}
       <div className="flex justify-end gap-2">
         <Button
           variant="outline"

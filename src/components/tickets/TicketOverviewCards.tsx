@@ -18,21 +18,20 @@ export default function TicketOverviewCards() {
   const [loading, setLoading] = React.useState(true)
 
   React.useEffect(() => {
+    let mounted = true
+
     const loadStats = async () => {
       setLoading(true)
 
       const me = await apiMe()
-      if (!me) {
-        setLoading(false)
-        return
-      }
+      if (!mounted) return
+      if (!me) { setLoading(false); return }
 
       const role = me.role as Role
 
       if (role === "user") {
-        /* USER STATS — scoped to this user's own tickets */
         const tickets = await fetchTickets({ requester_id: me.id })
-
+        if (!mounted) return
         setStats([
           { label: "Total Tickets", value: tickets.length },
           { label: "New Tickets", value: tickets.filter((t) => t.status === "new").length },
@@ -41,9 +40,8 @@ export default function TicketOverviewCards() {
           { label: "Closed Tickets", value: tickets.filter((t) => t.status === "closed").length },
         ])
       } else {
-        /* ENGINEER / ADMIN STATS — server scopes to org */
         const allTickets = await fetchTickets()
-
+        if (!mounted) return
         const total = allTickets.length
         const queueNew = allTickets.filter((t) => t.status === "new" && !t.assignee).length
         const openAssigned = allTickets.filter((t) => t.status === "open" && t.assignee === me.id).length
@@ -59,10 +57,11 @@ export default function TicketOverviewCards() {
         ])
       }
 
-      setLoading(false)
+      if (mounted) setLoading(false)
     }
 
     loadStats()
+    return () => { mounted = false }
   }, [])
 
   if (loading) {

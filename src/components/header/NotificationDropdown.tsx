@@ -50,21 +50,31 @@ export default function NotificationDropdown() {
   }, [])
 
   React.useEffect(() => {
+    let mounted = true
+
+    const handleNotification = () => {
+      if (mounted) load()
+    }
+
     load()
 
     apiMe().then((user) => {
-      if (!user) return
+      if (!user || !mounted) return
       const socket = connectSocket(user.id)
-
-      socket.on("notification:new", () => {
-        load()
-      })
-
-      return () => {
-        socket.off("notification:new")
-      }
+      // Remove previous listener to prevent duplicates before adding
+      socket.off("notification:new", handleNotification)
+      socket.on("notification:new", handleNotification)
     })
-  }, [load])
+
+    return () => {
+      mounted = false
+      const socket = getSocket()
+      // getSocket returns the singleton — safe to call even if not connected
+      try { socket.off("notification:new") } catch { /* ignore */ }
+    }
+  // load is stable (useCallback with empty deps), so this runs once
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleOpenChange = async (isOpen: boolean) => {
     setOpen(isOpen)

@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from "react"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -26,13 +27,28 @@ export default function TicketFilters({
   category,
   setCategory,
 }: Props) {
+  const [inputValue, setInputValue] = React.useState(search)
+
+  // Debounce: only call setSearch 300ms after user stops typing
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(inputValue)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [inputValue, setSearch])
+
+  // Sync input if parent resets search externally
+  React.useEffect(() => {
+    setInputValue(search)
+  }, [search])
+
   return (
     <div className="flex flex-wrap gap-3 justify-end">
       <Input
         placeholder="Search"
         className="w-64"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
+        value={inputValue}
+        onChange={(e) => setInputValue(e.target.value)}
       />
 
       <Select value={status} onValueChange={setStatus}>

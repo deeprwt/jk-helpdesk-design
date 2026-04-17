@@ -28,8 +28,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-/* ---------------- TYPES ---------------- */
-
 type Range = "weekly" | "monthly" | "yearly"
 type UserRole = "user" | "engineer" | "admin" | "superadmin"
 
@@ -40,8 +38,6 @@ type ChartRow = {
   fill: string
 }
 
-/* ---------------- COLORS ---------------- */
-
 const COLORS = {
   total: "var(--chart-1)",
   new: "var(--chart-2)",
@@ -49,8 +45,6 @@ const COLORS = {
   hold: "var(--chart-4)",
   closed: "var(--chart-5)",
 }
-
-/* ---------------- CHART CONFIG ---------------- */
 
 const chartConfig = {
   value: { label: "Tickets" },
@@ -61,8 +55,6 @@ const chartConfig = {
   closed: { label: "Closed Tickets", color: COLORS.closed },
 } satisfies ChartConfig
 
-/* ---------------- DATE RANGE ---------------- */
-
 function getFromDate(range: Range) {
   const d = new Date()
   if (range === "weekly") d.setDate(d.getDate() - 7)
@@ -71,8 +63,6 @@ function getFromDate(range: Range) {
   return d.toISOString()
 }
 
-/* ---------------- COMPONENT ---------------- */
-
 export function PieChartTable() {
   const [range, setRange] = React.useState<Range>("weekly")
   const [data, setData] = React.useState<ChartRow[]>([])
@@ -80,19 +70,25 @@ export function PieChartTable() {
   const [ready, setReady] = React.useState(false)
   const [loading, setLoading] = React.useState(true)
 
-  React.useEffect(() => {
-    const load = async () => {
-      const me = await apiMe()
+  // Cache user so apiMe() isn't called on every range change
+  const userRef = React.useRef<{ id: string; role: UserRole } | null>(null)
 
-      if (!me) {
-        setReady(true)
-        return
+  React.useEffect(() => {
+    let mounted = true
+
+    const load = async () => {
+      // Fetch user only once; reuse cached value on range changes
+      if (!userRef.current) {
+        const me = await apiMe()
+        if (!mounted) return
+        if (!me) { setReady(true); return }
+        userRef.current = { id: me.id, role: me.role as UserRole }
+        setRole(me.role as UserRole)
       }
 
-      setRole(me.role)
+      const user = userRef.current!
 
-      /* HARD STOP FOR NORMAL USERS */
-      if (me.role === "user") {
+      if (user.role === "user") {
         setReady(true)
         return
       }
@@ -101,11 +97,12 @@ export function PieChartTable() {
 
       const fromDate = getFromDate(range)
 
-      // Fetch ticket stats via API — server handles org scoping
       const res = await fetch(
         `/api/tickets/stats?range=${range}&from=${encodeURIComponent(fromDate)}`,
         { headers: authHeaders() }
       )
+
+      if (!mounted) return
 
       if (res.ok) {
         const json = await res.json()
@@ -117,20 +114,14 @@ export function PieChartTable() {
           { key: "closed", label: "Closed Tickets", value: json.closed ?? 0, fill: COLORS.closed },
         ])
       } else {
-        // Fallback: fetch all tickets and count client-side
         const tickets = await fetchTickets({ from: fromDate })
-        const total = tickets.length
-        const newQueue = tickets.filter((t) => t.status === "new" && !t.assignee).length
-        const open = tickets.filter((t) => t.status === "open" && t.assignee === me.id).length
-        const hold = tickets.filter((t) => t.status === "hold" && t.assignee === me.id).length
-        const closed = tickets.filter((t) => t.status === "closed" && t.assignee === me.id).length
-
+        if (!mounted) return
         setData([
-          { key: "total", label: "Total Tickets", value: total, fill: COLORS.total },
-          { key: "new", label: "New Tickets (Queue)", value: newQueue, fill: COLORS.new },
-          { key: "open", label: "Open Tickets", value: open, fill: COLORS.open },
-          { key: "hold", label: "Hold Tickets", value: hold, fill: COLORS.hold },
-          { key: "closed", label: "Closed Tickets", value: closed, fill: COLORS.closed },
+          { key: "total", label: "Total Tickets", value: tickets.length, fill: COLORS.total },
+          { key: "new", label: "New Tickets (Queue)", value: tickets.filter((t) => t.status === "new" && !t.assignee).length, fill: COLORS.new },
+          { key: "open", label: "Open Tickets", value: tickets.filter((t) => t.status === "open").length, fill: COLORS.open },
+          { key: "hold", label: "Hold Tickets", value: tickets.filter((t) => t.status === "hold").length, fill: COLORS.hold },
+          { key: "closed", label: "Closed Tickets", value: tickets.filter((t) => t.status === "closed").length, fill: COLORS.closed },
         ])
       }
 
@@ -139,12 +130,11 @@ export function PieChartTable() {
     }
 
     load()
+
+    return () => { mounted = false }
   }, [range])
 
-  /* SAME GUARD AS TEAMMATES */
-  if (!ready || role === "user") {
-    return null
-  }
+  if (!ready || role === "user") return null
 
   return (
     <Card>
