@@ -6,7 +6,11 @@ let socket: Socket | null = null
 
 export function getSocket(): Socket {
   if (!socket) {
-    socket = io(typeof window !== "undefined" ? window.location.origin : "http://localhost:3000", {
+    const url =
+      typeof window !== "undefined"
+        ? window.location.origin
+        : (process.env.NEXT_PUBLIC_APP_URL as string)
+    socket = io(url, {
       autoConnect: false,
       transports: ["websocket", "polling"],
     })

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { randomBytes, createHash } from "crypto"
 import { query, queryOne } from "@/lib/db"
 import { sendVerificationEmail } from "@/lib/email"
+import { getAppUrl } from "@/lib/app-url"
 
 export const runtime = "nodejs"
 
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
       [hashedToken, expiry, user.id]
     )
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
+    const appUrl = getAppUrl()
     const resetUrl = `${appUrl}/update-password?token=${rawToken}&uid=${user.id}`
 
     sendVerificationEmail({

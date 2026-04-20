@@ -95,7 +95,7 @@ async function main() {
   /* ── Socket.IO ──────────────────────────────────────────────── */
   const io = new SocketIOServer(httpServer, {
     cors: {
-      origin: process.env.NEXT_PUBLIC_APP_URL ?? `http://localhost:${port}`,
+      origin: process.env.NEXT_PUBLIC_APP_URL,
       methods: ["GET", "POST"],
       credentials: true,
     },
@@ -190,8 +190,9 @@ async function main() {
     }
 
     const env = dev ? "dev" : "prod"
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL
     console.log(`\n🚀 Ready [${env}]`)
-    console.log(`   ➜ Local:   http://localhost:${port}`)
+    if (appUrl) console.log(`   ➜ Local:   ${appUrl}`)
     if (lanAddresses.length === 0) {
       console.log(`   ➜ Network: no LAN IPv4 interfaces detected`)
     } else {

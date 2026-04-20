@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer"
+import { getAppUrl } from "@/lib/app-url"
 
 /* ──────────────────────────────────────
    Transporter (reused across calls)
@@ -143,7 +144,7 @@ function getActionDetails(action: EmailAction, actorName: string, ticketShortId:
 function buildEmailHtml(params: SendTicketEmailParams): string {
   const ticketShortId = params.ticketId.slice(0, 8).toUpperCase()
   const details = getActionDetails(params.action, params.actorName, ticketShortId)
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
+  const appUrl = getAppUrl()
   const ticketUrl = params.ticketUrl ?? `${appUrl}/ticket/${params.ticketId}`
   const logoUrl = `${appUrl}/images/logo/logo-icon.svg`
   const year = new Date().getFullYear()
@@ -307,7 +308,7 @@ type VerificationEmailParams = {
 }
 
 function buildVerificationEmailHtml(params: VerificationEmailParams): string {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
+  const appUrl = getAppUrl()
   const logoUrl = `${appUrl}/images/logo/logo-icon.svg`
   const year = new Date().getFullYear()
 

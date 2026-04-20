@@ -3,6 +3,7 @@ import { randomBytes, createHash } from "crypto"
 import bcrypt from "bcryptjs"
 import { query, queryOne } from "@/lib/db"
 import { sendVerificationEmail } from "@/lib/email"
+import { getAppUrl } from "@/lib/app-url"
 
 export const runtime = "nodejs"
 
@@ -63,7 +64,7 @@ export async function POST(req: Request) {
     if (!newUser) throw new Error("User insert failed")
 
     /* 6. Send verification email */
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
+    const appUrl = getAppUrl()
     const verificationUrl = `${appUrl}/verify-email?token=${rawToken}&uid=${newUser.id}`
 
     sendVerificationEmail({ to: normalizedEmail, recipientName: fullName, verificationUrl }).catch(console.error)
