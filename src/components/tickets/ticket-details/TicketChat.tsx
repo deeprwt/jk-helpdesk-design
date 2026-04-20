@@ -97,8 +97,8 @@ export default function TicketChat({
     const socket = getSocket()
     if (!socket) return
 
-    const handleNewMessage = (msg: Message) => {
-      // Only add if it's for this ticket and not already present
+    const handleNewMessage = (msg: Message & { ticket_id?: string }) => {
+      if (msg.ticket_id && msg.ticket_id !== ticketId) return
       setMessages((prev) => {
         if (prev.find((m) => m.id === msg.id)) return prev
         return [...prev, msg]
@@ -109,13 +109,13 @@ export default function TicketChat({
       setOnlineUsers(users)
     }
 
-    socket.emit("join_ticket", ticketId)
-    socket.on(`ticket:${ticketId}:message`, handleNewMessage)
+    socket.emit("join:ticket", ticketId)
+    socket.on("ticket:message", handleNewMessage)
     socket.on(`ticket:${ticketId}:presence`, handlePresenceUpdate)
 
     return () => {
-      socket.emit("leave_ticket", ticketId)
-      socket.off(`ticket:${ticketId}:message`, handleNewMessage)
+      socket.emit("leave:ticket", ticketId)
+      socket.off("ticket:message", handleNewMessage)
       socket.off(`ticket:${ticketId}:presence`, handlePresenceUpdate)
     }
   }, [ticketId, setMessages])

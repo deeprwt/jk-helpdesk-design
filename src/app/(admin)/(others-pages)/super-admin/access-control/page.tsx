@@ -178,11 +178,6 @@ export default function AccessControlPage() {
     load()
   }
 
-  // Filter to admins and engineers for the main table
-  const manageableUsers = users.filter(
-    (u) => u.role === "admin" || u.role === "engineer" || u.role === "superadmin"
-  )
-
   return (
     <RoleGate allowedRoles={["superadmin"]}>
       <div className="space-y-6">
@@ -220,14 +215,14 @@ export default function AccessControlPage() {
                     Loading…
                   </TableCell>
                 </TableRow>
-              ) : manageableUsers.length === 0 ? (
+              ) : users.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
-                    No admins or engineers found
+                    No users found
                   </TableCell>
                 </TableRow>
               ) : (
-                manageableUsers.map((u) => (
+                users.map((u) => (
                   <TableRow key={u.id}>
                     <TableCell>
                       <div className="flex items-center gap-2.5">
@@ -296,36 +291,6 @@ export default function AccessControlPage() {
               )}
             </TableBody>
           </Table>
-        </Card>
-
-        {/* All Users overview */}
-        <Card className="p-5 space-y-4">
-          <h3 className="font-semibold">All Users ({users.length})</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {users.map((u) => (
-              <div
-                key={u.id}
-                className="flex items-center gap-3 rounded-lg border border-border/60 p-3"
-              >
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={u.avatar_url ?? undefined} />
-                  <AvatarFallback className="text-xs font-bold bg-muted">
-                    {u.full_name?.[0]?.toUpperCase() ?? "?"}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium truncate">{u.full_name || "—"}</p>
-                  <p className="text-xs text-muted-foreground truncate">{u.email}</p>
-                </div>
-                <Badge
-                  variant="secondary"
-                  className={`text-[10px] ${ROLE_BADGE[u.role] ?? ROLE_BADGE.user}`}
-                >
-                  {u.role.replace("_", " ")}
-                </Badge>
-              </div>
-            ))}
-          </div>
         </Card>
 
         {/* Grant Access Dialog */}

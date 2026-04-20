@@ -13,6 +13,9 @@ export async function GET(req: Request) {
     const status = searchParams.get("status")
     const assignee = searchParams.get("assignee")
     const requester = searchParams.get("requester_id")
+    const queue = searchParams.get("queue") === "true"
+    const category = searchParams.get("category")
+    const search = searchParams.get("search")
     const limit = parseInt(searchParams.get("limit") ?? "100")
 
     let sql = `
@@ -31,8 +34,19 @@ export async function GET(req: Request) {
       sql += ` AND t.requester_id = $${idx++}`
       params.push(user.id)
     } else if (user.role === "engineer") {
-      sql += ` AND (t.assignee = $${idx++} OR t.requester_id = $${idx++})`
-      params.push(user.id, user.id)
+      // Engineers are scoped to their own organization
+      sql += ` AND t.org_domain = $${idx++}`
+      params.push(user.org_domain)
+
+      if (queue) {
+        // Queue tab: unassigned tickets the engineer can acquire
+        sql += ` AND t.assignee IS NULL`
+      } else if (!assignee && !requester) {
+        // Default engineer view: their assigned tickets OR tickets they raised OR the queue
+        sql += ` AND (t.assignee = $${idx} OR t.requester_id = $${idx} OR t.assignee IS NULL)`
+        params.push(user.id)
+        idx++
+      }
     } else if (user.role !== "superadmin") {
       sql += ` AND t.org_domain = $${idx++}`
       params.push(user.org_domain)
@@ -49,6 +63,15 @@ export async function GET(req: Request) {
     if (requester) {
       sql += ` AND t.requester_id = $${idx++}`
       params.push(requester)
+    }
+    if (category) {
+      sql += ` AND t.category = $${idx++}`
+      params.push(category)
+    }
+    if (search) {
+      sql += ` AND (t.subject ILIKE $${idx} OR t.requester_name ILIKE $${idx} OR t.location ILIKE $${idx})`
+      params.push(`%${search}%`)
+      idx++
     }
 
     sql += ` ORDER BY t.created_at DESC LIMIT $${idx++}`

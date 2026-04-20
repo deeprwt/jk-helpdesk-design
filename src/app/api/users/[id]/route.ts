@@ -13,7 +13,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const targetId = id === "me" ? user.id : id
 
     const found = await queryOne(
-      "SELECT id, email, full_name, first_name, last_name, role, org_domain, avatar_url, phone, city, country, is_verified, created_at FROM users WHERE id=$1",
+      `SELECT id, email, full_name, first_name, last_name, role, org_domain, avatar_url,
+              phone, city, country, postal_code, present_address, permanent_address,
+              employee_id, designation, department, position, manager,
+              is_verified, created_at
+         FROM users WHERE id=$1`,
       [targetId]
     )
 
@@ -39,7 +43,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
 
     const body = await req.json()
-    const allowed = ["first_name", "last_name", "phone", "city", "country", "avatar_url", "role"]
+    const allowed = [
+      "first_name", "last_name", "full_name",
+      "phone", "city", "country", "postal_code",
+      "present_address", "permanent_address",
+      "employee_id", "designation", "department", "position", "manager",
+      "avatar_url", "role",
+    ]
     const updates = Object.entries(body).filter(([k]) => allowed.includes(k))
 
     if (updates.length === 0) return NextResponse.json({ error: "No valid fields" }, { status: 400 })

@@ -27,6 +27,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { Check } from "lucide-react"
 import { toast } from "sonner"
+import { useRouter } from "next/navigation"
 import { apiMe, fetchUsers, authHeaders } from "@/lib/api"
 
 /* -----------------------------------
@@ -116,6 +117,7 @@ type AssignedAsset = {
 }
 
 export default function CreateTicketForm() {
+  const router = useRouter()
   const formRef = React.useRef<HTMLFormElement | null>(null)
 
   const [loading, setLoading] = React.useState(false)
@@ -219,6 +221,7 @@ export default function CreateTicketForm() {
       formRef.current.reset()
       setCategory("")
       setAssetRelated("no")
+      router.push("/ticket")
     } catch {
       toast.error("Failed to create ticket")
     } finally {

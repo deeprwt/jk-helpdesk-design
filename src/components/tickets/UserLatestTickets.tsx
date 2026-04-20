@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import { Eye } from "lucide-react"
 import { apiMe, fetchTickets } from "@/lib/api"
+import { getSocket } from "@/lib/socket"
 import { STATUS_STYLE } from "@/lib/ticket-utils"
 
 type Ticket = {
@@ -41,25 +42,32 @@ export default function UserLatestTickets() {
   const [tickets, setTickets] = React.useState<Ticket[]>([])
   const [loading, setLoading] = React.useState(true)
 
-  React.useEffect(() => {
-    let mounted = true
+  const load = React.useCallback(async () => {
+    const me = await apiMe()
+    if (!me) { setLoading(false); return }
 
-    const loadTickets = async () => {
-      setLoading(true)
-      const me = await apiMe()
-      if (!mounted) return
-      if (!me) { setLoading(false); return }
-
-      const data = await fetchTickets({ requester_id: me.id, limit: "10" })
-      if (!mounted) return
-
-      setTickets(data as unknown as Ticket[])
-      setLoading(false)
-    }
-
-    loadTickets()
-    return () => { mounted = false }
+    const data = await fetchTickets({ requester_id: me.id, limit: "10" })
+    setTickets(data as unknown as Ticket[])
+    setLoading(false)
   }, [])
+
+  React.useEffect(() => {
+    load()
+  }, [load])
+
+  React.useEffect(() => {
+    const socket = getSocket()
+    if (!socket) return
+
+    const handleChange = () => load()
+    socket.on("tickets:refresh", handleChange)
+    socket.on("ticket:updated", handleChange)
+
+    return () => {
+      socket.off("tickets:refresh", handleChange)
+      socket.off("ticket:updated", handleChange)
+    }
+  }, [load])
 
   return (
     <Card className="p-6">

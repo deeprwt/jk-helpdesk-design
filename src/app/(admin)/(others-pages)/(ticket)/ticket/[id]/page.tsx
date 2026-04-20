@@ -318,16 +318,25 @@ export default function TicketDetailsPage() {
     loadData();
   }, [loadData]);
 
-  /* Socket.IO: listen for ticket updates */
+  /* Socket.IO: listen for ticket updates and activity */
   React.useEffect(() => {
     const socket = getSocket();
     if (!socket) return;
 
-    const handleUpdate = () => loadData();
-    socket.on(`ticket:${id}:updated`, handleUpdate);
+    const handleUpdate = (payload?: { id?: string; ticket_id?: string }) => {
+      const targetId = payload?.id ?? payload?.ticket_id;
+      if (targetId && targetId !== id) return;
+      loadData();
+    };
+
+    socket.emit("join:ticket", id);
+    socket.on("ticket:updated", handleUpdate);
+    socket.on("ticket:activity", handleUpdate);
 
     return () => {
-      socket.off(`ticket:${id}:updated`, handleUpdate);
+      socket.emit("leave:ticket", id);
+      socket.off("ticket:updated", handleUpdate);
+      socket.off("ticket:activity", handleUpdate);
     };
   }, [id, loadData]);
 

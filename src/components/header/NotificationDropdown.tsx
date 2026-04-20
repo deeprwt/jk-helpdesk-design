@@ -10,6 +10,7 @@ import { Bell, MessageSquare, UserCheck, XCircle, PauseCircle, RefreshCw } from 
 import { cn } from "@/lib/utils"
 import { fetchNotifications, markNotificationsRead, apiMe, type Notification } from "@/lib/api"
 import { connectSocket, getSocket } from "@/lib/socket"
+import { toast } from "sonner"
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -52,8 +53,32 @@ export default function NotificationDropdown() {
   React.useEffect(() => {
     let mounted = true
 
-    const handleNotification = () => {
-      if (mounted) load()
+    const handleNotification = (payload?: {
+      type?: string
+      message?: string
+      ticket_id?: string
+      actor_id?: string
+    }) => {
+      if (!mounted) return
+      load()
+
+      if (payload?.message) {
+        toast(payload.message, {
+          description:
+            payload.type === "message"
+              ? "New message"
+              : payload.type === "acquired"
+              ? "Ticket acquired"
+              : payload.type === "closed"
+              ? "Ticket closed"
+              : payload.type === "hold"
+              ? "Ticket on hold"
+              : "Ticket update",
+          action: payload.ticket_id
+            ? { label: "View", onClick: () => router.push(`/ticket/${payload.ticket_id}`) }
+            : undefined,
+        })
+      }
     }
 
     load()
@@ -61,7 +86,6 @@ export default function NotificationDropdown() {
     apiMe().then((user) => {
       if (!user || !mounted) return
       const socket = connectSocket(user.id)
-      // Remove previous listener to prevent duplicates before adding
       socket.off("notification:new", handleNotification)
       socket.on("notification:new", handleNotification)
     })
@@ -69,7 +93,6 @@ export default function NotificationDropdown() {
     return () => {
       mounted = false
       const socket = getSocket()
-      // getSocket returns the singleton — safe to call even if not connected
       try { socket.off("notification:new") } catch { /* ignore */ }
     }
   // load is stable (useCallback with empty deps), so this runs once
