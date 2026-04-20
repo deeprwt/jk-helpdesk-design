@@ -24,6 +24,7 @@ loadEnv()
 
 import { createServer } from "http"
 import { parse } from "url"
+import { networkInterfaces } from "os"
 import next from "next"
 import { Server as SocketIOServer } from "socket.io"
 import { Pool } from "pg"
@@ -179,7 +180,25 @@ async function main() {
 
   /* ── Start ──────────────────────────────────────────────────── */
   httpServer.listen(port, () => {
-    console.log(`\n🚀 Ready on http://localhost:${port} [${dev ? "dev" : "prod"}]\n`)
+    const nets = networkInterfaces()
+    const lanAddresses: string[] = []
+    for (const name of Object.keys(nets)) {
+      for (const net of nets[name] ?? []) {
+        if (net.family === "IPv4" && !net.internal) lanAddresses.push(net.address)
+      }
+    }
+
+    const env = dev ? "dev" : "prod"
+    console.log(`\n🚀 Ready [${env}]`)
+    console.log(`   ➜ Local:   http://localhost:${port}`)
+    if (lanAddresses.length === 0) {
+      console.log(`   ➜ Network: no LAN IPv4 interfaces detected`)
+    } else {
+      for (const ip of lanAddresses) {
+        console.log(`   ➜ Network: http://${ip}:${port}`)
+      }
+    }
+    console.log("")
   })
 }
 
