@@ -43,6 +43,7 @@ async function runMigrations(pool: Pool) {
   const migrationFiles = [
     "migrations/001_schema.sql",
     "migrations/002_user_profile_fields.sql",
+    "migrations/003_assets_schema.sql",
   ]
 
   for (const file of migrationFiles) {

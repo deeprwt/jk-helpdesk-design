@@ -4,9 +4,9 @@ import { query, queryOne } from "@/lib/db"
 
 export const runtime = "nodejs"
 
-export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const user = await requireAuth(req)
+    const user = await requireAuth(_req)
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
     const { id } = await params
@@ -41,13 +41,22 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const { id } = await params
     const body = await req.json()
 
-    const allowed = ["name", "type", "serial_number", "status", "assigned_to"]
+    const allowed = [
+      "asset_code", "asset_type", "model", "status", "location", "department",
+      "purchase_date", "warranty_expiry", "assigned_to",
+    ]
     const updates = Object.entries(body).filter(([k]) => allowed.includes(k))
     if (updates.length === 0) return NextResponse.json({ error: "No valid fields" }, { status: 400 })
 
     const setClauses = updates.map(([k], i) => `${k} = $${i + 2}`).join(", ")
-    const values = [id, ...updates.map(([, v]) => v)]
-    await query(`UPDATE assets SET ${setClauses} WHERE id=$1`, values)
+    const values = [
+      id,
+      ...updates.map(([k, v]) => {
+        if ((k === "purchase_date" || k === "warranty_expiry") && !v) return null
+        return v
+      }),
+    ]
+    await query(`UPDATE assets SET ${setClauses}, updated_at = NOW() WHERE id=$1`, values)
 
     return NextResponse.json({ success: true })
   } catch (err) {
