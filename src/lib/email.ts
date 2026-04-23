@@ -168,8 +168,8 @@ function buildEmailHtml(params: SendTicketEmailParams): string {
           <!-- Header -->
           <tr>
             <td style="background-color:#1a1a2e;padding:28px 40px;text-align:center;">
-              <img src="${logoUrl}" alt="CGB Solutions" height="40" style="height:40px;margin-bottom:8px;" />
-              <p style="margin:0;color:#ffffff;font-size:14px;font-weight:600;letter-spacing:1px;">CGB Solutions Helpdesk</p>
+              <img src="${logoUrl}" alt="JK Food" height="40" style="height:40px;margin-bottom:8px;" />
+              <p style="margin:0;color:#ffffff;font-size:14px;font-weight:600;letter-spacing:1px;">JK Food Helpdesk</p>
             </td>
           </tr>
 
@@ -263,7 +263,7 @@ function buildEmailHtml(params: SendTicketEmailParams): string {
                 You received this email because a ticket update was made on your helpdesk account.
               </p>
               <p style="margin:0;font-size:12px;color:#9ca3af;">
-                &copy; ${year} CGB Solutions. All rights reserved.
+                &copy; ${year} JK Food. All rights reserved.
               </p>
             </td>
           </tr>
@@ -291,7 +291,7 @@ export async function sendTicketEmail(params: SendTicketEmailParams): Promise<vo
   const details = getActionDetails(params.action, params.actorName, ticketShortId)
 
   await transporter.sendMail({
-    from: `"CGB Solutions Helpdesk" <${process.env.SMTP_FROM ?? process.env.SMTP_USER}>`,
+    from: `"JK Food Helpdesk" <${process.env.SMTP_FROM ?? process.env.SMTP_USER}>`,
     to: params.to,
     subject: details.subject,
     html: buildEmailHtml(params),
@@ -330,8 +330,8 @@ function buildVerificationEmailHtml(params: VerificationEmailParams): string {
           <!-- Header -->
           <tr>
             <td style="background-color:#1a1a2e;padding:28px 40px;text-align:center;">
-              <img src="${logoUrl}" alt="CGB Solutions" height="40" style="height:40px;margin-bottom:8px;" />
-              <p style="margin:0;color:#ffffff;font-size:14px;font-weight:600;letter-spacing:1px;">CGB Solutions Helpdesk</p>
+              <img src="${logoUrl}" alt="JK Food" height="40" style="height:40px;margin-bottom:8px;" />
+              <p style="margin:0;color:#ffffff;font-size:14px;font-weight:600;letter-spacing:1px;">JK Food Helpdesk</p>
             </td>
           </tr>
 
@@ -402,7 +402,7 @@ function buildVerificationEmailHtml(params: VerificationEmailParams): string {
                 If you didn't create an account, you can safely ignore this email.
               </p>
               <p style="margin:0;font-size:12px;color:#9ca3af;">
-                &copy; ${year} CGB Solutions. All rights reserved.
+                &copy; ${year} JK Food. All rights reserved.
               </p>
             </td>
           </tr>
@@ -423,9 +423,9 @@ export async function sendVerificationEmail(params: VerificationEmailParams): Pr
   }
 
   await transporter.sendMail({
-    from: `"CGB Solutions Helpdesk" <${process.env.SMTP_FROM ?? process.env.SMTP_USER}>`,
+    from: `"JK Food Helpdesk" <${process.env.SMTP_FROM ?? process.env.SMTP_USER}>`,
     to: params.to,
-    subject: "Verify Your Email — CGB Solutions Helpdesk",
+    subject: "Verify Your Email — JK Food Helpdesk",
     html: buildVerificationEmailHtml(params),
   })
 }

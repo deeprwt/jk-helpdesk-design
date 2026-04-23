@@ -1,5 +1,5 @@
 -- ============================================================
--- CGB Helpdesk — Super Admin & Multi-Organization Migration
+-- JK Food Helpdesk — Super Admin & Multi-Organization Migration
 -- Run this ONCE in Supabase SQL Editor (Dashboard → SQL Editor)
 -- ============================================================
 
@@ -39,7 +39,7 @@ CREATE INDEX IF NOT EXISTS idx_uoa_org_id  ON user_organization_access(organizat
 
 INSERT INTO organizations (name, domain)
 SELECT DISTINCT
-  -- Generate a readable name from domain (e.g. "cgbindia.com" → "Cgbindia")
+  -- Generate a readable name from domain (e.g. "jkmail.com" → "Jkmail")
   initcap(
     replace(
       replace(
@@ -130,5 +130,5 @@ ALTER PUBLICATION supabase_realtime ADD TABLE user_organization_access;
 -- │    Update generated names to proper business names   │
 -- └──────────────────────────────────────────────────────┘
 
--- UPDATE organizations SET name = 'CGB India'         WHERE domain = 'cgbindia.com';
+-- UPDATE organizations SET name = 'JK Foods'          WHERE domain = 'jkmail.com';
 -- UPDATE organizations SET name = 'Artbox Solutions'  WHERE domain = 'artboxsolutions.com';

@@ -1,5 +1,5 @@
 -- =============================================================================
--- CGB HELPDESK — MULTI-TENANT MIGRATION
+-- JK FOOD HELPDESK — MULTI-TENANT MIGRATION
 -- Run this entire script once in your Supabase SQL Editor.
 -- Each section is idempotent (safe to re-run).
 -- =============================================================================

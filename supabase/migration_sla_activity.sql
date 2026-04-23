@@ -1,5 +1,5 @@
 -- ================================================
--- CGB Helpdesk — SLA, Activity & Assignment Tables
+-- JK Food Helpdesk — SLA, Activity & Assignment Tables
 -- Run this in Supabase SQL Editor
 -- ================================================
 

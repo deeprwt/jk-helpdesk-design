@@ -4,7 +4,7 @@ import { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "Next.js Videos | Help Desk 360° CGB Solutions ",
+  title: "Next.js Videos | Help Desk 360° JK Food ",
   description:
     "This is Next.js Videos page for TailAdmin - Next.js Tailwind CSS Admin Dashboard Template",
 };

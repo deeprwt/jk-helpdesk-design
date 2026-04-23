@@ -30,7 +30,7 @@ export default function AuthLayout({
                   />
                 </Link>
                 <p className="text-center text-gray-400 dark:text-white/60">
-                  CGB Solutions | A One-Stop Solution for Your Business
+                  JK Food | A One-Stop Solution for Your Business
                 </p>
               </div>
             </div>

@@ -4,8 +4,8 @@ import { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "Create New Ticket | Help Desk 360° CGB Solutions ",
-  description: "CGB Solutions | A One-Stop Solution for Your Business",
+  title: "Create New Ticket | Help Desk 360° JK Food ",
+  description: "JK Food | A One-Stop Solution for Your Business",
 };
 
 export default function BlankPage() {

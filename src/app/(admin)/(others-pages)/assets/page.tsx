@@ -239,7 +239,7 @@ export default function AssetsPage() {
   const handleDownloadTemplate = () => {
     const templateData = [
       {
-        asset_code: "CGB-001",
+        asset_code: "JK-001",
         asset_type: "Laptop",
         model: "Dell Latitude 5520",
         status: "in_use",

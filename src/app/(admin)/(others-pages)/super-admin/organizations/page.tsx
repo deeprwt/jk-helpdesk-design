@@ -300,7 +300,7 @@ export default function OrganizationsPage() {
                 <Input
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  placeholder="e.g. CGB India"
+                  placeholder="e.g. JK Foods"
                 />
               </div>
 
@@ -309,7 +309,7 @@ export default function OrganizationsPage() {
                 <Input
                   value={newDomain}
                   onChange={(e) => setNewDomain(e.target.value)}
-                  placeholder="e.g. cgbindia.com"
+                  placeholder="e.g. jkmail.com"
                 />
                 <p className="text-xs text-muted-foreground">
                   Only users with emails from this domain can register

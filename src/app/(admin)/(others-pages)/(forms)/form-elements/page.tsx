@@ -13,7 +13,7 @@ import { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "Next.js Form Elements | Help Desk 360° CGB Solutions ",
+  title: "Next.js Form Elements | Help Desk 360° JK Food ",
   description:
     "This is Next.js Form Elements page for TailAdmin - Next.js Tailwind CSS Admin Dashboard Template",
 };

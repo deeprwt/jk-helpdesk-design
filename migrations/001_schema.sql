@@ -1,4 +1,4 @@
--- CGB Helpdesk — PostgreSQL Schema
+-- JK Food Helpdesk — PostgreSQL Schema
 -- Run: psql $DATABASE_URL -f migrations/001_schema.sql
 
 -- ────────────────────────────────────────────────────────
@@ -329,5 +329,5 @@ CREATE TRIGGER user_changes_trigger
 -- Default superadmin organization (edit domain as needed)
 -- ────────────────────────────────────────────────────────
 INSERT INTO organizations (name, domain, status)
-VALUES ('CGB India', 'cgbindia.com', 'active')
+VALUES ('JK Foods', 'jkmail.com', 'active')
 ON CONFLICT (domain) DO NOTHING;
