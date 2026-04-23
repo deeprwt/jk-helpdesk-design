@@ -283,19 +283,29 @@ function buildEmailHtml(params: SendTicketEmailParams): string {
    ────────────────────────────────────── */
 export async function sendTicketEmail(params: SendTicketEmailParams): Promise<void> {
   if (!process.env.SMTP_HOST || !process.env.SMTP_USER) {
-    console.warn("SMTP not configured — skipping email")
+    console.warn("[EMAIL] SMTP not configured — skipping email")
     return
   }
 
   const ticketShortId = params.ticketId.slice(0, 8).toUpperCase()
   const details = getActionDetails(params.action, params.actorName, ticketShortId)
 
-  await transporter.sendMail({
-    from: `"JK Food Helpdesk" <${process.env.SMTP_FROM ?? process.env.SMTP_USER}>`,
-    to: params.to,
-    subject: details.subject,
-    html: buildEmailHtml(params),
-  })
+  const ts = new Date().toISOString()
+  console.log(`[EMAIL ${ts}] → sending | to=${params.to} | action=${params.action} | ticket=#${ticketShortId} | subject="${details.subject}"`)
+
+  try {
+    const info = await transporter.sendMail({
+      from: `"JK Food Helpdesk" <${process.env.SMTP_FROM ?? process.env.SMTP_USER}>`,
+      to: params.to,
+      subject: details.subject,
+      html: buildEmailHtml(params),
+    })
+    console.log(`[EMAIL ${ts}] ✓ sent    | to=${params.to} | id=${info.messageId} | response="${info.response}"`)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error(`[EMAIL ${ts}] ✗ failed  | to=${params.to} | action=${params.action} | error=${msg}`)
+    throw err
+  }
 }
 
 /* ──────────────────────────────────────
@@ -418,14 +428,25 @@ function buildVerificationEmailHtml(params: VerificationEmailParams): string {
 
 export async function sendVerificationEmail(params: VerificationEmailParams): Promise<void> {
   if (!process.env.SMTP_HOST || !process.env.SMTP_USER) {
-    console.warn("SMTP not configured — skipping verification email")
+    console.warn("[EMAIL] SMTP not configured — skipping verification email")
     return
   }
 
-  await transporter.sendMail({
-    from: `"JK Food Helpdesk" <${process.env.SMTP_FROM ?? process.env.SMTP_USER}>`,
-    to: params.to,
-    subject: "Verify Your Email — JK Food Helpdesk",
-    html: buildVerificationEmailHtml(params),
-  })
+  const ts = new Date().toISOString()
+  const subject = "Verify Your Email — JK Food Helpdesk"
+  console.log(`[EMAIL ${ts}] → sending | to=${params.to} | action=verification | subject="${subject}"`)
+
+  try {
+    const info = await transporter.sendMail({
+      from: `"JK Food Helpdesk" <${process.env.SMTP_FROM ?? process.env.SMTP_USER}>`,
+      to: params.to,
+      subject,
+      html: buildVerificationEmailHtml(params),
+    })
+    console.log(`[EMAIL ${ts}] ✓ sent    | to=${params.to} | id=${info.messageId} | response="${info.response}"`)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error(`[EMAIL ${ts}] ✗ failed  | to=${params.to} | action=verification | error=${msg}`)
+    throw err
+  }
 }
