@@ -22,7 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Plus, Trash2, Power, Building2, Globe, Users } from "lucide-react"
+import { Plus, Trash2, Power, Building2, Globe, Users, Eraser, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
 
 type Org = {
@@ -41,6 +41,14 @@ export default function OrganizationsPage() {
   const [newName, setNewName] = React.useState("")
   const [newDomain, setNewDomain] = React.useState("")
   const [saving, setSaving] = React.useState(false)
+
+  // Clean Tickets dialog state
+  const [cleanOpen, setCleanOpen] = React.useState(false)
+  const [cleanTarget, setCleanTarget] = React.useState<Org | null>(null)
+  const [cleanCount, setCleanCount] = React.useState<number | null>(null)
+  const [cleanConfirm, setCleanConfirm] = React.useState("")
+  const [cleanLoading, setCleanLoading] = React.useState(false)
+  const [cleaning, setCleaning] = React.useState(false)
 
   const load = React.useCallback(async () => {
     setLoading(true)
@@ -123,6 +131,66 @@ export default function OrganizationsPage() {
         : `${org.name} deactivated`
     )
     load()
+  }
+
+  const openCleanDialog = async (org: Org) => {
+    setCleanTarget(org)
+    setCleanOpen(true)
+    setCleanConfirm("")
+    setCleanCount(null)
+    setCleanLoading(true)
+
+    try {
+      const res = await fetch(`/api/organizations/${org.id}/clean-tickets`, {
+        headers: authHeaders(),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setCleanCount(data.ticket_count ?? 0)
+      } else {
+        toast.error(data.error ?? "Failed to load ticket count")
+        setCleanCount(0)
+      }
+    } finally {
+      setCleanLoading(false)
+    }
+  }
+
+  const cleanTickets = async () => {
+    if (!cleanTarget) return
+    if (cleanConfirm.trim().toLowerCase() !== cleanTarget.domain.toLowerCase()) {
+      toast.error("Type the domain exactly to confirm")
+      return
+    }
+
+    setCleaning(true)
+    try {
+      const res = await fetch(`/api/organizations/${cleanTarget.id}/clean-tickets`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ confirm_domain: cleanTarget.domain }),
+      })
+
+      const data = await res.json().catch(() => ({}))
+
+      if (!res.ok) {
+        toast.error(data.error ?? "Failed to clean tickets")
+        return
+      }
+
+      toast.success(
+        data.deleted_count > 0
+          ? `Deleted ${data.deleted_count} ticket${data.deleted_count === 1 ? "" : "s"} for ${cleanTarget.name}`
+          : `No tickets to delete for ${cleanTarget.name}`
+      )
+      setCleanOpen(false)
+      setCleanTarget(null)
+      setCleanConfirm("")
+      setCleanCount(null)
+      load()
+    } finally {
+      setCleaning(false)
+    }
   }
 
   const deleteOrg = async (org: Org) => {
@@ -273,6 +341,14 @@ export default function OrganizationsPage() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          title="Clean all tickets for this organization"
+                          onClick={() => openCleanDialog(org)}
+                        >
+                          <Eraser className="h-4 w-4 text-amber-600" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           title="Delete organization"
                           onClick={() => deleteOrg(org)}
                         >
@@ -286,6 +362,76 @@ export default function OrganizationsPage() {
             </TableBody>
           </Table>
         </Card>
+
+        {/* Clean Tickets Dialog */}
+        <Dialog open={cleanOpen} onOpenChange={setCleanOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-amber-600" />
+                Clean All Tickets
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4 pt-2">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-900/40 p-3">
+                <p className="text-sm text-amber-900 dark:text-amber-200">
+                  This will permanently delete <strong>all tickets</strong> belonging to{" "}
+                  <strong>{cleanTarget?.name}</strong> ({cleanTarget?.domain}), including
+                  every message, attachment, activity log, and notification attached to
+                  them. Users and assets are not affected.
+                </p>
+              </div>
+
+              <div className="rounded-lg border p-3 bg-muted/40">
+                <p className="text-xs text-muted-foreground mb-1">Tickets to be deleted</p>
+                <p className="text-2xl font-bold">
+                  {cleanLoading ? "…" : cleanCount ?? 0}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>
+                  Type{" "}
+                  <span className="font-mono font-semibold text-foreground">
+                    {cleanTarget?.domain}
+                  </span>{" "}
+                  to confirm
+                </Label>
+                <Input
+                  value={cleanConfirm}
+                  onChange={(e) => setCleanConfirm(e.target.value)}
+                  placeholder={cleanTarget?.domain}
+                  autoComplete="off"
+                  disabled={cleaning}
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <Button
+                  variant="outline"
+                  onClick={() => setCleanOpen(false)}
+                  disabled={cleaning}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={cleanTickets}
+                  disabled={
+                    cleaning ||
+                    cleanLoading ||
+                    cleanConfirm.trim().toLowerCase() !==
+                      (cleanTarget?.domain.toLowerCase() ?? "___")
+                  }
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                  <Eraser className="h-4 w-4 mr-1" />
+                  {cleaning ? "Cleaning…" : "Clean Tickets"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Add Dialog */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

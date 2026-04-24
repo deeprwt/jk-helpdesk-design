@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
-import { Plus, X, Shield, ShieldCheck, User } from "lucide-react"
+import { Plus, X, Shield, ShieldCheck, User, CheckCircle2, Clock, BadgeCheck } from "lucide-react"
 import { toast } from "sonner"
 
 /* ── Types ────────────────────────────── */
@@ -41,6 +41,7 @@ type UserRow = {
   full_name: string
   role: string
   avatar_url: string | null
+  is_verified: boolean
   orgs: Org[]
 }
 
@@ -72,6 +73,11 @@ export default function AccessControlPage() {
   const [roleOpen, setRoleOpen] = React.useState(false)
   const [roleTarget, setRoleTarget] = React.useState<UserRow | null>(null)
   const [newRole, setNewRole] = React.useState("")
+
+  // Verify account dialog state
+  const [verifyOpen, setVerifyOpen] = React.useState(false)
+  const [verifyTarget, setVerifyTarget] = React.useState<UserRow | null>(null)
+  const [verifying, setVerifying] = React.useState(false)
 
   /* ── Load data ──────────────────────── */
   const load = React.useCallback(async () => {
@@ -156,6 +162,33 @@ export default function AccessControlPage() {
     load()
   }
 
+  /* ── Verify user account ────────────── */
+  const verifyAccount = async () => {
+    if (!verifyTarget) return
+    setVerifying(true)
+
+    try {
+      const res = await fetch(`/api/users/${verifyTarget.id}/verify`, {
+        method: "POST",
+        headers: authHeaders(),
+      })
+
+      const data = await res.json().catch(() => ({}))
+
+      if (!res.ok) {
+        toast.error(data.error ?? "Failed to verify account")
+        return
+      }
+
+      toast.success(`${verifyTarget.full_name || verifyTarget.email} verified — email sent`)
+      setVerifyOpen(false)
+      setVerifyTarget(null)
+      load()
+    } finally {
+      setVerifying(false)
+    }
+  }
+
   /* ── Change user role ───────────────── */
   const changeRole = async () => {
     if (!roleTarget || !newRole) return
@@ -203,6 +236,7 @@ export default function AccessControlPage() {
                 <TableHead>User</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Organization Access</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -211,13 +245,13 @@ export default function AccessControlPage() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
                     Loading…
                   </TableCell>
                 </TableRow>
               ) : users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
                     No users found
                   </TableCell>
                 </TableRow>
@@ -248,6 +282,25 @@ export default function AccessControlPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
+                      {u.is_verified ? (
+                        <Badge
+                          variant="secondary"
+                          className="gap-1 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Active
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="secondary"
+                          className="gap-1 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                        >
+                          <Clock className="h-3.5 w-3.5" />
+                          Pending
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
                       <div className="flex flex-wrap gap-1.5">
                         {u.orgs.length === 0 ? (
                           <span className="text-xs text-muted-foreground">
@@ -274,17 +327,33 @@ export default function AccessControlPage() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setRoleTarget(u)
-                          setNewRole(u.role)
-                          setRoleOpen(true)
-                        }}
-                      >
-                        Change Role
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        {!u.is_verified && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-green-700 hover:text-green-800 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-900/20"
+                            onClick={() => {
+                              setVerifyTarget(u)
+                              setVerifyOpen(true)
+                            }}
+                          >
+                            <BadgeCheck className="h-4 w-4 mr-1" />
+                            Verify
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setRoleTarget(u)
+                            setNewRole(u.role)
+                            setRoleOpen(true)
+                          }}
+                        >
+                          Change Role
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -338,6 +407,58 @@ export default function AccessControlPage() {
               <Button className="w-full" onClick={grantAccess}>
                 Grant Access
               </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Verify Account Dialog */}
+        <Dialog open={verifyOpen} onOpenChange={setVerifyOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Verify Account</DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4 pt-2">
+              <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/40">
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src={verifyTarget?.avatar_url ?? undefined} />
+                  <AvatarFallback className="text-sm font-bold bg-muted">
+                    {verifyTarget?.full_name?.[0]?.toUpperCase() ?? "?"}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <div className="font-medium text-sm truncate">
+                    {verifyTarget?.full_name || "—"}
+                  </div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {verifyTarget?.email}
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-sm text-muted-foreground">
+                This will activate the account so the user can sign in without clicking an
+                email verification link. A confirmation email will be sent to{" "}
+                <span className="font-medium text-foreground">{verifyTarget?.email}</span>.
+              </p>
+
+              <div className="flex items-center gap-2 justify-end pt-1">
+                <Button
+                  variant="outline"
+                  onClick={() => setVerifyOpen(false)}
+                  disabled={verifying}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={verifyAccount}
+                  disabled={verifying}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <BadgeCheck className="h-4 w-4 mr-1" />
+                  {verifying ? "Verifying…" : "Verify & Notify"}
+                </Button>
+              </div>
             </div>
           </DialogContent>
         </Dialog>

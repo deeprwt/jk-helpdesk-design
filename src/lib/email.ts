@@ -1,10 +1,11 @@
-import nodemailer from "nodemailer"
+import nodemailer, { type SendMailOptions, type SentMessageInfo } from "nodemailer"
+import type SMTPTransport from "nodemailer/lib/smtp-transport"
 import { getAppUrl } from "@/lib/app-url"
 
 /* ──────────────────────────────────────
    Transporter (reused across calls)
    ────────────────────────────────────── */
-const transporter = nodemailer.createTransport({
+const smtpOptions: SMTPTransport.Options = {
   host: process.env.SMTP_HOST,
   port: Number(process.env.SMTP_PORT ?? 587),
   secure: process.env.SMTP_SECURE === "true",
@@ -12,7 +13,64 @@ const transporter = nodemailer.createTransport({
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
-})
+  // Hard caps so a stalled connection can never freeze the request.
+  connectionTimeout: 15_000,  // TCP connect
+  greetingTimeout:   10_000,  // wait for 220 banner
+  socketTimeout:     20_000,  // per-command
+}
+
+// Force IPv4 lookups — avoids Windows IPv6/getaddrinfo flakiness that
+// surfaces as "ENOTFOUND" on an otherwise-reachable host. Older
+// @types/nodemailer omits `family`, so we set it after typing.
+;(smtpOptions as SMTPTransport.Options & { family?: number }).family = 4
+
+const transporter = nodemailer.createTransport(smtpOptions)
+
+/* ──────────────────────────────────────
+   Retry helper — transparently retries
+   transient DNS / network errors.
+   ────────────────────────────────────── */
+const TRANSIENT_ERROR_CODES = new Set([
+  "ENOTFOUND",     // DNS: host could not be resolved
+  "EAI_AGAIN",     // DNS: temporary failure, try again
+  "ETIMEDOUT",     // TCP connect / socket timeout
+  "ECONNRESET",    // connection reset by peer
+  "ECONNREFUSED",  // server refused connection
+  "ESOCKET",       // nodemailer socket error
+  "ECONNECTION",   // nodemailer generic connection error
+  "EDNS",          // generic DNS error
+])
+
+function isTransientError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false
+  const code = (err as { code?: string }).code
+  return typeof code === "string" && TRANSIENT_ERROR_CODES.has(code)
+}
+
+async function sendMailWithRetry(
+  mail: SendMailOptions,
+  label: string,
+  maxAttempts = 3,
+): Promise<SentMessageInfo> {
+  let lastErr: unknown
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await transporter.sendMail(mail)
+    } catch (err) {
+      lastErr = err
+      const msg = err instanceof Error ? err.message : String(err)
+      if (!isTransientError(err) || attempt === maxAttempts) {
+        throw err
+      }
+      const backoffMs = 1000 * 2 ** (attempt - 1) // 1s, 2s, 4s
+      console.warn(
+        `[EMAIL] ⟳ retry ${attempt}/${maxAttempts - 1} for ${label} in ${backoffMs}ms — ${msg}`,
+      )
+      await new Promise((r) => setTimeout(r, backoffMs))
+    }
+  }
+  throw lastErr
+}
 
 /* ──────────────────────────────────────
    Types
@@ -294,12 +352,15 @@ export async function sendTicketEmail(params: SendTicketEmailParams): Promise<vo
   console.log(`[EMAIL ${ts}] → sending | to=${params.to} | action=${params.action} | ticket=#${ticketShortId} | subject="${details.subject}"`)
 
   try {
-    const info = await transporter.sendMail({
-      from: `"JK Food Helpdesk" <${process.env.SMTP_FROM ?? process.env.SMTP_USER}>`,
-      to: params.to,
-      subject: details.subject,
-      html: buildEmailHtml(params),
-    })
+    const info = await sendMailWithRetry(
+      {
+        from: `"JK Food Helpdesk" <${process.env.SMTP_FROM ?? process.env.SMTP_USER}>`,
+        to: params.to,
+        subject: details.subject,
+        html: buildEmailHtml(params),
+      },
+      `ticket=${ticketShortId} action=${params.action} to=${params.to}`,
+    )
     console.log(`[EMAIL ${ts}] ✓ sent    | to=${params.to} | id=${info.messageId} | response="${info.response}"`)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
@@ -437,16 +498,161 @@ export async function sendVerificationEmail(params: VerificationEmailParams): Pr
   console.log(`[EMAIL ${ts}] → sending | to=${params.to} | action=verification | subject="${subject}"`)
 
   try {
-    const info = await transporter.sendMail({
-      from: `"JK Food Helpdesk" <${process.env.SMTP_FROM ?? process.env.SMTP_USER}>`,
-      to: params.to,
-      subject,
-      html: buildVerificationEmailHtml(params),
-    })
+    const info = await sendMailWithRetry(
+      {
+        from: `"JK Food Helpdesk" <${process.env.SMTP_FROM ?? process.env.SMTP_USER}>`,
+        to: params.to,
+        subject,
+        html: buildVerificationEmailHtml(params),
+      },
+      `verification to=${params.to}`,
+    )
     console.log(`[EMAIL ${ts}] ✓ sent    | to=${params.to} | id=${info.messageId} | response="${info.response}"`)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error(`[EMAIL ${ts}] ✗ failed  | to=${params.to} | action=verification | error=${msg}`)
+    throw err
+  }
+}
+
+/* ──────────────────────────────────────
+   Account Verified (by admin) Email
+   ────────────────────────────────────── */
+type AccountVerifiedEmailParams = {
+  to: string
+  recipientName: string
+  verifiedByName?: string
+}
+
+function buildAccountVerifiedEmailHtml(params: AccountVerifiedEmailParams): string {
+  const appUrl = getAppUrl()
+  const logoUrl = `${appUrl}/images/logo/logo-icon.svg`
+  const loginUrl = `${appUrl}/signin`
+  const year = new Date().getFullYear()
+  const verifiedBy = params.verifiedByName ?? "the administrator"
+
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Account Verified</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f5;padding:40px 0;">
+    <tr>
+      <td align="center">
+
+        <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+
+          <!-- Header -->
+          <tr>
+            <td style="background-color:#1a1a2e;padding:28px 40px;text-align:center;">
+              <img src="${logoUrl}" alt="JK Food" height="40" style="height:40px;margin-bottom:8px;" />
+              <p style="margin:0;color:#ffffff;font-size:14px;font-weight:600;letter-spacing:1px;">JK Food Helpdesk</p>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:40px;">
+
+              <!-- Icon -->
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
+                <tr>
+                  <td style="background-color:#dcfce7;border-radius:50%;width:64px;height:64px;text-align:center;vertical-align:middle;">
+                    <span style="font-size:28px;">✅</span>
+                  </td>
+                </tr>
+              </table>
+
+              <h1 style="margin:0 0 12px;font-size:22px;font-weight:700;color:#111827;line-height:1.3;text-align:center;">
+                Your Account Has Been Verified
+              </h1>
+              <p style="margin:0 0 8px;font-size:15px;color:#4b5563;line-height:1.6;text-align:center;">
+                Hi <strong>${params.recipientName}</strong>,
+              </p>
+              <p style="margin:0 0 32px;font-size:15px;color:#4b5563;line-height:1.6;text-align:center;">
+                Good news — your account has been verified by ${verifiedBy}. You can now sign in and start using JK Food Helpdesk.
+              </p>
+
+              <!-- CTA Button -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
+                <tr>
+                  <td align="center">
+                    <a href="${loginUrl}" style="display:inline-block;background-color:#16a34a;color:#ffffff;font-size:15px;font-weight:600;padding:14px 48px;border-radius:8px;text-decoration:none;letter-spacing:0.5px;">
+                      Sign In
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Info notice -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#eff6ff;border-left:4px solid #2563eb;border-radius:6px;">
+                <tr>
+                  <td style="padding:14px 20px;">
+                    <p style="margin:0;font-size:13px;color:#1e40af;line-height:1.5;">
+                      You no longer need to click an email verification link — you can sign in directly with your email and password.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:0 40px;">
+              <hr style="border:none;border-top:1px solid #e5e7eb;margin:0;" />
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:24px 40px 32px;text-align:center;">
+              <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">
+                If you didn't expect this, please contact your administrator.
+              </p>
+              <p style="margin:0;font-size:12px;color:#9ca3af;">
+                &copy; ${year} JK Food. All rights reserved.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}
+
+export async function sendAccountVerifiedEmail(params: AccountVerifiedEmailParams): Promise<void> {
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER) {
+    console.warn("[EMAIL] SMTP not configured — skipping account-verified email")
+    return
+  }
+
+  const ts = new Date().toISOString()
+  const subject = "Your Account Has Been Verified — JK Food Helpdesk"
+  console.log(`[EMAIL ${ts}] → sending | to=${params.to} | action=account_verified | subject="${subject}"`)
+
+  try {
+    const info = await sendMailWithRetry(
+      {
+        from: `"JK Food Helpdesk" <${process.env.SMTP_FROM ?? process.env.SMTP_USER}>`,
+        to: params.to,
+        subject,
+        html: buildAccountVerifiedEmailHtml(params),
+      },
+      `account_verified to=${params.to}`,
+    )
+    console.log(`[EMAIL ${ts}] ✓ sent    | to=${params.to} | id=${info.messageId} | response="${info.response}"`)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error(`[EMAIL ${ts}] ✗ failed  | to=${params.to} | action=account_verified | error=${msg}`)
     throw err
   }
 }
