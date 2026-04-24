@@ -75,6 +75,7 @@ const navItems: NavItem[] = [
     subItems: [
       { name: "Organizations", path: "/super-admin/organizations", roles: ["superadmin"] },
       { name: "Access Control", path: "/super-admin/access-control", roles: ["superadmin"] },
+      { name: "Email Test", path: "/super-admin/email-test", roles: ["superadmin"] },
     ],
   },
   // {

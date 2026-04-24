@@ -629,6 +629,121 @@ function buildAccountVerifiedEmailHtml(params: AccountVerifiedEmailParams): stri
 </html>`
 }
 
+/* ──────────────────────────────────────
+   SMTP Diagnostic helpers (for admin email-test page)
+   ────────────────────────────────────── */
+export type SmtpTestResult = {
+  ok: boolean
+  stage: "config" | "verify" | "send" | "done"
+  messageId?: string
+  response?: string
+  accepted?: string[]
+  rejected?: string[]
+  code?: string
+  command?: string
+  errorMessage?: string
+  config: {
+    host?: string
+    port?: string
+    secure?: string
+    user?: string
+    from?: string
+  }
+}
+
+function baseConfig() {
+  return {
+    host: process.env.SMTP_HOST,
+    port: process.env.SMTP_PORT,
+    secure: process.env.SMTP_SECURE,
+    user: process.env.SMTP_USER,
+    from: process.env.SMTP_FROM,
+  }
+}
+
+export async function sendTestEmail(params: {
+  to: string
+  subject?: string
+  message?: string
+  actorName?: string
+}): Promise<SmtpTestResult> {
+  const config = baseConfig()
+
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER) {
+    return {
+      ok: false,
+      stage: "config",
+      errorMessage: "SMTP env vars are not configured on the server",
+      config,
+    }
+  }
+
+  try {
+    await transporter.verify()
+  } catch (err) {
+    const e = err as { code?: string; command?: string; message?: string }
+    return {
+      ok: false,
+      stage: "verify",
+      code: e.code,
+      command: e.command,
+      errorMessage: e.message ?? String(err),
+      config,
+    }
+  }
+
+  const subject =
+    params.subject?.trim() || `SMTP test — ${new Date().toISOString()}`
+  const message =
+    params.message?.trim() ||
+    "This is a test email from JK Food Helpdesk. If you're seeing this, SMTP is working."
+  const actorName = params.actorName ?? "Super Admin"
+
+  const html = `
+    <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:560px;margin:24px auto;padding:24px;border:1px solid #e5e7eb;border-radius:12px;background:#fff;">
+      <h2 style="margin:0 0 8px;color:#16a34a;">✓ SMTP Test</h2>
+      <p style="color:#374151;white-space:pre-wrap;margin:0 0 16px;">${message.replace(/</g, "&lt;")}</p>
+      <table style="font-size:13px;color:#4b5563;border-collapse:collapse;">
+        <tr><td style="padding:4px 12px 4px 0;color:#9ca3af;">Host</td><td><code>${config.host}</code></td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#9ca3af;">Port</td><td><code>${config.port}</code></td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#9ca3af;">From</td><td><code>${config.from ?? config.user}</code></td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#9ca3af;">Sent by</td><td>${actorName}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#9ca3af;">Sent at</td><td><code>${new Date().toISOString()}</code></td></tr>
+      </table>
+    </div>
+  `
+
+  try {
+    const info = await transporter.sendMail({
+      from: `"JK Food Helpdesk (Test)" <${process.env.SMTP_FROM ?? process.env.SMTP_USER}>`,
+      to: params.to,
+      subject,
+      text: `${message}\n\nHost: ${config.host}\nPort: ${config.port}\nFrom: ${config.from}\nSent by: ${actorName}\nSent at: ${new Date().toISOString()}\n`,
+      html,
+    })
+    return {
+      ok: true,
+      stage: "done",
+      messageId: info.messageId,
+      response: info.response,
+      accepted: info.accepted as string[] | undefined,
+      rejected: info.rejected as string[] | undefined,
+      config,
+    }
+  } catch (err) {
+    const e = err as { code?: string; command?: string; message?: string; response?: string }
+    return {
+      ok: false,
+      stage: "send",
+      code: e.code,
+      command: e.command,
+      errorMessage: e.message ?? String(err),
+      response: e.response,
+      config,
+    }
+  }
+}
+
 export async function sendAccountVerifiedEmail(params: AccountVerifiedEmailParams): Promise<void> {
   if (!process.env.SMTP_HOST || !process.env.SMTP_USER) {
     console.warn("[EMAIL] SMTP not configured — skipping account-verified email")
