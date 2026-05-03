@@ -55,6 +55,78 @@ export async function POST(req: Request) {
 
     const ticketShortId = ticket.id.slice(0, 8).toUpperCase()
     const requesterName = formData.get("requester_name")?.toString() ?? ""
+    const ticketLocation = formData.get("location")?.toString()?.trim() ?? ""
+
+    /* 2b. Auto-assign to the engineer whose city matches the ticket location */
+    if (ticketLocation) {
+      const engineer = await queryOne<{ id: string; full_name: string; email: string }>(
+        `SELECT id, full_name, email
+           FROM users
+          WHERE role = 'engineer'
+            AND city = $1
+          ORDER BY created_at ASC
+          LIMIT 1`,
+        [ticketLocation]
+      )
+
+      if (engineer) {
+        const assignedAt = new Date().toISOString()
+        const slaResolutionAt = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString()
+
+        const claimed = await queryOne<{ id: string }>(
+          `UPDATE tickets
+              SET assignee = $2,
+                  status = 'open',
+                  assigned_at = $3,
+                  sla_resolution_at = $4
+            WHERE id = $1 AND assignee IS NULL
+            RETURNING id`,
+          [ticket.id, engineer.id, assignedAt, slaResolutionAt]
+        )
+
+        if (claimed) {
+          await query(
+            "INSERT INTO ticket_assignments (ticket_id, engineer_id, action) VALUES ($1,$2,'auto_assigned')",
+            [ticket.id, engineer.id]
+          )
+
+          await query(
+            "INSERT INTO ticket_activity (ticket_id, actor_id, action, details) VALUES ($1,$2,'auto_assigned',$3)",
+            [
+              ticket.id,
+              engineer.id,
+              JSON.stringify({
+                location: ticketLocation,
+                engineer_name: engineer.full_name,
+                reason: "city_match",
+              }),
+            ]
+          )
+
+          await query(
+            "INSERT INTO notifications (user_id, actor_id, ticket_id, type, message, is_read) VALUES ($1,$2,$3,'acquired',$4,false)",
+            [
+              engineer.id,
+              requesterId,
+              ticket.id,
+              `Ticket #${ticketShortId} auto-assigned to you (${ticketLocation})`,
+            ]
+          )
+
+          if (engineer.email) {
+            sendTicketEmail({
+              to: engineer.email,
+              recipientName: engineer.full_name ?? "Engineer",
+              actorName: requesterName,
+              ticketId: ticket.id,
+              ticketSubject: ticket.subject,
+              action: "acquired",
+              comment: `Ticket #${ticketShortId} has been auto-assigned to you based on location: ${ticketLocation}.`,
+            }).catch(() => {})
+          }
+        }
+      }
+    }
 
     /* 3. Requester email */
     const requesterData = await queryOne<{ email: string }>(

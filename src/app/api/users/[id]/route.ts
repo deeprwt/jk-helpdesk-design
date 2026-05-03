@@ -14,7 +14,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
     const found = await queryOne(
       `SELECT id, email, full_name, first_name, last_name, role, org_domain, avatar_url,
-              phone, city, country, postal_code, present_address, permanent_address,
+              phone, city, state, country, postal_code, present_address, permanent_address,
               employee_id, designation, department, position, manager,
               is_verified, created_at
          FROM users WHERE id=$1`,
@@ -45,7 +45,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const body = await req.json()
     const allowed = [
       "first_name", "last_name", "full_name",
-      "phone", "city", "country", "postal_code",
+      "phone", "city", "state", "country", "postal_code",
       "present_address", "permanent_address",
       "employee_id", "designation", "department", "position", "manager",
       "avatar_url", "role",

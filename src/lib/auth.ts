@@ -39,6 +39,9 @@ export type AuthUser = {
   org_domain: string
   avatar_url: string | null
   is_verified: boolean
+  phone: string | null
+  city: string | null
+  state: string | null
 }
 
 export async function requireAuth(req: Request | NextRequest): Promise<AuthUser | null> {
@@ -49,7 +52,7 @@ export async function requireAuth(req: Request | NextRequest): Promise<AuthUser 
   if (!payload) return null
 
   const user = await queryOne<AuthUser>(
-    "SELECT id, email, full_name, role, org_domain, avatar_url, is_verified FROM users WHERE id = $1",
+    "SELECT id, email, full_name, role, org_domain, avatar_url, is_verified, phone, city, state FROM users WHERE id = $1",
     [payload.userId]
   )
 

@@ -16,6 +16,9 @@ export async function GET(req: Request) {
     const queue = searchParams.get("queue") === "true"
     const category = searchParams.get("category")
     const search = searchParams.get("search")
+    const from = searchParams.get("from")
+    const to = searchParams.get("to")
+    const orgDomain = searchParams.get("org_domain")
     const limit = parseInt(searchParams.get("limit") ?? "100")
 
     let sql = `
@@ -72,6 +75,19 @@ export async function GET(req: Request) {
       sql += ` AND (t.subject ILIKE $${idx} OR t.requester_name ILIKE $${idx} OR t.location ILIKE $${idx})`
       params.push(`%${search}%`)
       idx++
+    }
+    if (from) {
+      sql += ` AND t.created_at >= $${idx++}`
+      params.push(from)
+    }
+    if (to) {
+      sql += ` AND t.created_at <= $${idx++}`
+      params.push(to)
+    }
+    // superadmin can scope to a specific org via query param
+    if (orgDomain && user.role === "superadmin") {
+      sql += ` AND t.org_domain = $${idx++}`
+      params.push(orgDomain)
     }
 
     sql += ` ORDER BY t.created_at DESC LIMIT $${idx++}`

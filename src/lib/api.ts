@@ -36,7 +36,13 @@ export type User = {
   last_name?: string
   phone?: string
   city?: string
+  state?: string
   country?: string
+  employee_id?: string | null
+  designation?: string | null
+  department?: string | null
+  position?: string | null
+  manager?: string | null
 }
 
 export async function apiLogin(email: string, password: string) {

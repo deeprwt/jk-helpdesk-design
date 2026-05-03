@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "NODE_ENV=production tsx server.ts",
     "lint": "eslint .",
-    "migrate": "psql $DATABASE_URL -f migrations/001_schema.sql"
+    "migrate": "tsx scripts/migrate.ts"
   },
   "dependencies": {
     "@fullcalendar/core": "^6.1.19",

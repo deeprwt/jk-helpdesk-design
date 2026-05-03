@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { TrendingUp } from "lucide-react"
 import { apiMe, fetchTickets } from "@/lib/api"
+import type { DateRange } from "@/components/dashboard/DashboardDateFilter"
 
 type Role = "user" | "engineer" | "admin" | "superadmin"
 
@@ -13,9 +14,16 @@ type OverviewStat = {
   value: number
 }
 
-export default function TicketOverviewCards() {
+type Props = {
+  dateRange?: DateRange
+}
+
+export default function TicketOverviewCards({ dateRange }: Props) {
   const [stats, setStats] = React.useState<OverviewStat[]>([])
   const [loading, setLoading] = React.useState(true)
+
+  const from = dateRange?.from ?? null
+  const to = dateRange?.to ?? null
 
   React.useEffect(() => {
     let mounted = true
@@ -29,8 +37,13 @@ export default function TicketOverviewCards() {
 
       const role = me.role as Role
 
+      const params: Record<string, string> = {}
+      if (from) params.from = from
+      if (to) params.to = to
+
       if (role === "user") {
-        const tickets = await fetchTickets({ requester_id: me.id })
+        params.requester_id = me.id
+        const tickets = await fetchTickets(params)
         if (!mounted) return
         setStats([
           { label: "Total Tickets", value: tickets.length },
@@ -40,20 +53,20 @@ export default function TicketOverviewCards() {
           { label: "Closed Tickets", value: tickets.filter((t) => t.status === "closed").length },
         ])
       } else {
-        const allTickets = await fetchTickets()
+        const allTickets = await fetchTickets(params)
         if (!mounted) return
         const total = allTickets.length
         const queueNew = allTickets.filter((t) => t.status === "new" && !t.assignee).length
-        const openAssigned = allTickets.filter((t) => t.status === "open" && t.assignee === me.id).length
-        const hold = allTickets.filter((t) => t.status === "hold" && t.assignee === me.id).length
-        const closedAssigned = allTickets.filter((t) => t.status === "closed" && t.assignee === me.id).length
+        const openAssigned = allTickets.filter((t) => t.status === "open").length
+        const hold = allTickets.filter((t) => t.status === "hold").length
+        const closed = allTickets.filter((t) => t.status === "closed").length
 
         setStats([
           { label: "Total Tickets", value: total },
           { label: "New in Queue", value: queueNew },
           { label: "Open (Assigned)", value: openAssigned },
           { label: "Hold Tickets", value: hold },
-          { label: "Closed (Resolved)", value: closedAssigned },
+          { label: "Closed (Resolved)", value: closed },
         ])
       }
 
@@ -62,7 +75,7 @@ export default function TicketOverviewCards() {
 
     loadStats()
     return () => { mounted = false }
-  }, [])
+  }, [from, to])
 
   if (loading) {
     return (

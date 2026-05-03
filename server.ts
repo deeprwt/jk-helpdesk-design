@@ -1,5 +1,5 @@
 // Load .env.local FIRST before any other imports read process.env
-import { readFileSync, existsSync } from "fs"
+import { readFileSync, existsSync, readdirSync } from "fs"
 import { join } from "path"
 
 function loadEnv() {
@@ -40,11 +40,13 @@ const handle = app.getRequestHandler()
 async function runMigrations(pool: Pool) {
   console.log("⏳ Running database migrations...")
 
-  const migrationFiles = [
-    "migrations/001_schema.sql",
-    "migrations/002_user_profile_fields.sql",
-    "migrations/003_assets_schema.sql",
-  ]
+  // Auto-discover every .sql file in migrations/ so newly added
+  // migration files (e.g. 004_*, 005_*, …) are picked up automatically.
+  const dir = join(process.cwd(), "migrations")
+  const migrationFiles = readdirSync(dir)
+    .filter((f) => f.endsWith(".sql"))
+    .sort()
+    .map((f) => `migrations/${f}`)
 
   for (const file of migrationFiles) {
     try {

@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { Pie, PieChart } from "recharts"
-import { apiMe, fetchTickets, authHeaders } from "@/lib/api"
+import { apiMe, fetchTickets } from "@/lib/api"
 
 import {
   Card,
@@ -20,15 +20,8 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart"
 
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import type { DateRange } from "@/components/dashboard/DashboardDateFilter"
 
-type Range = "weekly" | "monthly" | "yearly"
 type UserRole = "user" | "engineer" | "admin" | "superadmin"
 
 type ChartRow = {
@@ -55,102 +48,61 @@ const chartConfig = {
   closed: { label: "Closed Tickets", color: COLORS.closed },
 } satisfies ChartConfig
 
-function getFromDate(range: Range) {
-  const d = new Date()
-  if (range === "weekly") d.setDate(d.getDate() - 7)
-  if (range === "monthly") d.setMonth(d.getMonth() - 1)
-  if (range === "yearly") d.setFullYear(d.getFullYear() - 1)
-  return d.toISOString()
+type Props = {
+  dateRange?: DateRange
 }
 
-export function PieChartTable() {
-  const [range, setRange] = React.useState<Range>("weekly")
+export function PieChartTable({ dateRange }: Props) {
   const [data, setData] = React.useState<ChartRow[]>([])
   const [role, setRole] = React.useState<UserRole | null>(null)
   const [ready, setReady] = React.useState(false)
   const [loading, setLoading] = React.useState(true)
 
-  // Cache user so apiMe() isn't called on every range change
-  const userRef = React.useRef<{ id: string; role: UserRole } | null>(null)
+  const from = dateRange?.from ?? null
+  const to = dateRange?.to ?? null
 
   React.useEffect(() => {
     let mounted = true
 
     const load = async () => {
-      // Fetch user only once; reuse cached value on range changes
-      if (!userRef.current) {
-        const me = await apiMe()
-        if (!mounted) return
-        if (!me) { setReady(true); return }
-        userRef.current = { id: me.id, role: me.role as UserRole }
-        setRole(me.role as UserRole)
-      }
+      const me = await apiMe()
+      if (!mounted) return
+      if (!me) { setReady(true); return }
 
-      const user = userRef.current!
-
-      if (user.role === "user") {
-        setReady(true)
-        return
-      }
+      setRole(me.role as UserRole)
+      if (me.role === "user") { setReady(true); return }
 
       setLoading(true)
 
-      const fromDate = getFromDate(range)
+      const params: Record<string, string> = {}
+      if (from) params.from = from
+      if (to) params.to = to
 
-      const res = await fetch(
-        `/api/tickets/stats?range=${range}&from=${encodeURIComponent(fromDate)}`,
-        { headers: authHeaders() }
-      )
-
+      const tickets = await fetchTickets(params)
       if (!mounted) return
 
-      if (res.ok) {
-        const json = await res.json()
-        setData([
-          { key: "total", label: "Total Tickets", value: json.total ?? 0, fill: COLORS.total },
-          { key: "new", label: "New Tickets (Queue)", value: json.new_queue ?? 0, fill: COLORS.new },
-          { key: "open", label: "Open Tickets", value: json.open ?? 0, fill: COLORS.open },
-          { key: "hold", label: "Hold Tickets", value: json.hold ?? 0, fill: COLORS.hold },
-          { key: "closed", label: "Closed Tickets", value: json.closed ?? 0, fill: COLORS.closed },
-        ])
-      } else {
-        const tickets = await fetchTickets({ from: fromDate })
-        if (!mounted) return
-        setData([
-          { key: "total", label: "Total Tickets", value: tickets.length, fill: COLORS.total },
-          { key: "new", label: "New Tickets (Queue)", value: tickets.filter((t) => t.status === "new" && !t.assignee).length, fill: COLORS.new },
-          { key: "open", label: "Open Tickets", value: tickets.filter((t) => t.status === "open").length, fill: COLORS.open },
-          { key: "hold", label: "Hold Tickets", value: tickets.filter((t) => t.status === "hold").length, fill: COLORS.hold },
-          { key: "closed", label: "Closed Tickets", value: tickets.filter((t) => t.status === "closed").length, fill: COLORS.closed },
-        ])
-      }
+      setData([
+        { key: "total", label: "Total Tickets", value: tickets.length, fill: COLORS.total },
+        { key: "new", label: "New Tickets (Queue)", value: tickets.filter((t) => t.status === "new" && !t.assignee).length, fill: COLORS.new },
+        { key: "open", label: "Open Tickets", value: tickets.filter((t) => t.status === "open").length, fill: COLORS.open },
+        { key: "hold", label: "Hold Tickets", value: tickets.filter((t) => t.status === "hold").length, fill: COLORS.hold },
+        { key: "closed", label: "Closed Tickets", value: tickets.filter((t) => t.status === "closed").length, fill: COLORS.closed },
+      ])
 
       setLoading(false)
       setReady(true)
     }
 
     load()
-
     return () => { mounted = false }
-  }, [range])
+  }, [from, to])
 
   if (!ready || role === "user") return null
 
   return (
     <Card>
-      <CardHeader className="flex items-center justify-between">
+      <CardHeader>
         <CardTitle>Ticket Overview</CardTitle>
-
-        <Select value={range} onValueChange={(v) => setRange(v as Range)}>
-          <SelectTrigger className="w-[130px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="weekly">Weekly</SelectItem>
-            <SelectItem value="monthly">Monthly</SelectItem>
-            <SelectItem value="yearly">Yearly</SelectItem>
-          </SelectContent>
-        </Select>
       </CardHeader>
 
       <CardContent>
@@ -179,7 +131,6 @@ export function PieChartTable() {
             </div>
 
             {data.every((d) => d.value === 0) ? (
-              /* Empty state — all zeros: show a grey placeholder donut */
               <div className="w-[260px] h-[260px] mx-auto flex items-center justify-center">
                 <svg width="260" height="260" viewBox="0 0 260 260">
                   <circle

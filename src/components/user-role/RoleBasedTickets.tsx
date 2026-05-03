@@ -3,13 +3,19 @@
 import * as React from "react"
 import { apiMe } from "@/lib/api"
 import EngineerTicketTable from "@/components/tickets/EngineerTicketTable"
+import AdminTicketTable from "@/components/tickets/AdminTicketTable"
 import UserLatestTickets from "@/components/tickets/UserLatestTickets"
 import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import type { DateRange } from "@/components/dashboard/DashboardDateFilter"
 
 type Role = "user" | "engineer" | "admin" | "superadmin"
 
-export default function RoleBasedTickets() {
+type Props = {
+  dateRange?: DateRange
+}
+
+export default function RoleBasedTickets({ dateRange }: Props) {
   const [role, setRole] = React.useState<Role | null>(null)
   const [loading, setLoading] = React.useState(true)
 
@@ -54,10 +60,9 @@ export default function RoleBasedTickets() {
   }
 
   if (role === "user") return <UserLatestTickets />
-
-  // engineer, admin, superadmin → show all org tickets
-  if (role === "engineer" || role === "admin" || role === "superadmin") {
-    return <EngineerTicketTable />
+  if (role === "engineer") return <EngineerTicketTable />
+  if (role === "admin" || role === "superadmin") {
+    return <AdminTicketTable role={role} dateRange={dateRange} />
   }
 
   return null

@@ -12,8 +12,14 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const role = searchParams.get("role")
     const org = searchParams.get("org_domain") ?? (user.role !== "superadmin" ? user.org_domain : undefined)
+    const onlineSince = searchParams.get("online_since")
+    const limitRaw = searchParams.get("limit")
+    const limit = limitRaw ? Math.max(1, Math.min(parseInt(limitRaw, 10) || 0, 500)) : null
 
-    let sql = "SELECT id, email, full_name, first_name, last_name, role, org_domain, avatar_url, is_verified, created_at FROM users WHERE 1=1"
+    let sql = `SELECT id, email, full_name, first_name, last_name, role, org_domain, avatar_url,
+                      phone, city, state, employee_id, designation, department, position, manager,
+                      is_verified, last_seen_at, created_at
+               FROM users WHERE 1=1`
     const params: unknown[] = []
     let idx = 1
 
@@ -25,8 +31,17 @@ export async function GET(req: Request) {
       sql += ` AND role = $${idx++}`
       params.push(role)
     }
+    if (onlineSince) {
+      sql += ` AND last_seen_at IS NOT NULL AND last_seen_at >= $${idx++}`
+      params.push(onlineSince)
+    }
 
     sql += " ORDER BY full_name ASC"
+
+    if (limit) {
+      sql += ` LIMIT $${idx++}`
+      params.push(limit)
+    }
 
     const users = await query(sql, params)
     return NextResponse.json({ users })

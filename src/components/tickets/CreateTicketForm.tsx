@@ -104,6 +104,7 @@ type UserLite = {
   id: string
   full_name: string
   phone?: string | number | null
+  city?: string | null
   role: Role
 }
 
@@ -129,6 +130,7 @@ export default function CreateTicketForm() {
 
   const [requesterName, setRequesterName] = React.useState("")
   const [contact, setContact] = React.useState("")
+  const [location, setLocation] = React.useState("")
 
   const [assetRelated, setAssetRelated] =
     React.useState<"yes" | "no">("no")
@@ -144,9 +146,16 @@ export default function CreateTicketForm() {
       if (!me) return
 
       setRole(me.role as Role)
-      setSelectedUser({ id: me.id, full_name: me.full_name, phone: me.phone, role: me.role as Role })
+      setSelectedUser({
+        id: me.id,
+        full_name: me.full_name,
+        phone: me.phone,
+        city: me.city,
+        role: me.role as Role,
+      })
       setRequesterName(me.full_name)
       setContact(me.phone?.toString() ?? "")
+      setLocation(me.city ?? "")
 
       if (me.role !== "user") {
         const allUsers = await fetchUsers()
@@ -154,6 +163,7 @@ export default function CreateTicketForm() {
           id: u.id,
           full_name: u.full_name,
           phone: u.phone,
+          city: u.city,
           role: u.role as Role,
         })))
       }
@@ -254,6 +264,7 @@ export default function CreateTicketForm() {
                         setSelectedUser(u)
                         setRequesterName(u.full_name)
                         setContact(u.phone?.toString() ?? "")
+                        setLocation(u.city ?? "")
                       }}
                     >
                       <Check className="mr-2 h-4 w-4" />
@@ -341,10 +352,16 @@ export default function CreateTicketForm() {
           </Select>
         </div>
 
-        {/* Location */}
+        {/* Location (auto-filled from profile city, locked) */}
         <div>
           <Label>Location</Label>
-          <Input name="location" />
+          <Input
+            name="location"
+            value={location}
+            readOnly
+            tabIndex={-1}
+            className="bg-muted cursor-not-allowed"
+          />
         </div>
       </div>
       {/* Reference Link */}
